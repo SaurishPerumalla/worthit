@@ -24,9 +24,9 @@ export async function fetchAmazonHtml(url: string): Promise<string> {
     'Pragma': 'no-cache'
   };
 
-  // 1. Try native fetch with shopper session cookies
+  // 1. Try native fetch with shopper session cookies (strict 9s timeout for cloud reliability)
   try {
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(9000) });
     if (res.ok) {
       const html = await res.text();
       // Ensure it is not an Akamai or Amazon anti-bot challenge page
@@ -48,6 +48,7 @@ export async function fetchAmazonHtml(url: string): Promise<string> {
     const { stdout } = await execFileAsync('curl', [
       '-s',
       '-L',
+      '--max-time', '10',
       '--compressed',
       '-H', `User-Agent: ${USER_AGENT}`,
       '-H', 'Accept-Language: en-US,en;q=0.9',

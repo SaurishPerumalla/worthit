@@ -133,7 +133,7 @@ export async function resolveInputToAsin(input: string): Promise<ResolveResult> 
 function extractGeneration(text: string): { num: number; raw: string } | null {
   const clean = text.replace(/&#160;|&nbsp;/gi, ' ').replace(/[™®©\u00a0]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   const m =
-    clean.match(/(?:iphone|watch(?:\s*se)?|galaxy|switch|playstation|ps|series|ultra|ipad|pixel|hero)\s*([0-9]{1,2})\b/i) ||
+    clean.match(/(?:iphone|watch(?:\s*se)?|galaxy|switch|playstation|ps|series|ultra|ipad|pixel|hero|airpods(?:\s*pro)?|macbook(?:\s*pro|\s*air)?)\s*([0-9]{1,2})\b/i) ||
     clean.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)\b/i);
   if (!m) return null;
   return { num: parseInt(m[1], 10), raw: m[0].trim() };
@@ -155,24 +155,39 @@ export function scoreProductRelevance(title: string, query: string): number {
   const q = cleanHtmlEntities(query);
 
   // 1. Heavy penalty if query is hardware/device and result is a standalone accessory
-  const wantsAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film|grip|dock|controller|joy-con|carrying)\b/i.test(q);
+  const wantsAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film|grip|dock|controller|joy-con|carrying|tip|tips)\b/i.test(q);
   const wantsDevice = /\b(iphone|ipad|macbook|imac|galaxy|watch|smartwatch|airpods|headphone|earbud|pixel|phone|laptop|tablet|switch|playstation|ps[45]|xbox|steam\s*deck|rog\s*ally|quest|console|tv|monitor|camera|speaker|dyson|kindle)\b/i.test(q);
 
   if (wantsDevice && !wantsAccessory) {
+    // Reject accessory patterns like "ESR for AirPods Pro 3 Case", "Spigen Compatible with...", "Replacement Bud"
+    const explicitForTarget =
+      /\b(?:for|compatible\s+with|fits|designed\s+for)\s+(?:the\s+)?(?:apple\s+|nintendo\s+|sony\s+|samsung\s+)?(?:iphone|ipad|airpods|macbook|galaxy|watch|apple\s*watch|switch|pixel|ps[45]|playstation|xbox|steam\s*deck)/i.test(t) &&
+      !/\bapplecare\b/i.test(t);
+
     const isAccessoryPhrase =
-      /\b(case for|cover for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|thumb grip|racing wheel|memory card|microsd|express card)\b/i.test(t) ||
-      /^(case|cover|screen protector|tempered glass|strap|replacement band|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
+      explicitForTarget ||
+      /\b(case for|cover for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|silicone case|leather case|hard shell|thumb grip|racing wheel|memory card|microsd|express card|ear\s*tips?|replacement\s+(?:case|charging\s*case|bud|earbud|tip|band|strap)|single\s+(?:left|right)|(?:left|right)\s+(?:side|earbud)\s+only|carabiner|lanyard|keychain|cleaning\s*(?:kit|pen))\b/i.test(t) ||
+      /^(case|cover|screen protector|tempered glass|strap|replacement|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
 
-    const isWatchOrBuds = /\b(apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch|airpods)\b/i.test(t);
-    const hasGenericAccessoryToken = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film)\b/i.test(t);
+    // Watches legitimately list "<Material> Case" + "Sport Band"; AirPods legitimately list "Charging Case".
+    const hasProtectiveCaseToken =
+      /\bcase\b/i.test(t) &&
+      !/\b(?:aluminum|titanium|stainless\s*steel|ceramic|watch)\s+case\b/i.test(t) &&
+      !/\bcharging\s+case\b/i.test(t);
 
-    if (isAccessoryPhrase || (!isWatchOrBuds && hasGenericAccessoryToken)) {
-      return -100; // eliminate accessories when user wants a device
+    const hasOtherAccessoryToken = /\b(cover|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner)\b/i.test(t);
+    const hasStandaloneBand = /\bband\b/i.test(t) && !/\b(?:apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch)\b/i.test(t);
+
+    if (isAccessoryPhrase || hasProtectiveCaseToken || hasOtherAccessoryToken || hasStandaloneBand) {
+      return -100; // eliminate accessories when user wants hardware
     }
   }
 
   // 2. Heavy penalty if brand / platform mismatch
   if (q.includes('iphone') && !t.includes('iphone')) return -50;
+  if (q.includes('airpods') && !t.includes('airpods')) return -50;
+  if (q.includes('macbook') && !t.includes('macbook')) return -50;
+  if (q.includes('ipad') && !t.includes('ipad')) return -50;
   if (q.includes('galaxy') && !t.includes('galaxy')) return -50;
   if (q.includes('pixel') && !t.includes('pixel')) return -50;
   if (q.includes('nintendo switch') && !t.includes('switch')) return -50;

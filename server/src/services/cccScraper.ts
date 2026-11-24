@@ -26,11 +26,12 @@ export async function fetchCccPriceHistory(asin: string, fallbackCurrentPrice?: 
 
   try {
     // Note: Do not send browser User-Agent here; Cloudflare allows standard image requests / direct requests to charts.camelcamelcamel.com
-    let res = await fetch(chartUrl);
+    let res = await fetch(chartUrl, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
       // Fallback with curl-like User-Agent
       res = await fetch(chartUrl, {
-        headers: { 'User-Agent': 'curl/8.7.1', 'Accept': '*/*' }
+        headers: { 'User-Agent': 'curl/8.7.1', 'Accept': '*/*' },
+        signal: AbortSignal.timeout(8000)
       });
     }
 
