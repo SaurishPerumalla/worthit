@@ -63,6 +63,7 @@ export interface VettedProduct {
   historical: HistoricalPriceData;
   verdict: DealVerdict;
   alternateMatches: CandidateMatch[];
+  matchNote?: string;
   scrapedAt: string;
   status: 'success' | 'warning' | 'error';
   errorMessage?: string;

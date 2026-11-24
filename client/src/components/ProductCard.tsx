@@ -6,7 +6,8 @@ import {
   XCircle,
   Clock,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 import { VettedProduct, CandidateMatch } from '../types.js';
 import { ChartDrawer } from './ChartDrawer.js';
@@ -117,6 +118,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSwitchVaria
               {product.isLatestTrackedPriceViaCcc && (
                 <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-semibold border border-amber-200 dark:border-amber-500/30 whitespace-nowrap">
                   Via CCC
+                </span>
+              )}
+
+              {product.matchNote && (
+                <span className="px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 text-[10px] font-semibold border border-sky-200 dark:border-sky-500/30 flex items-center gap-1 whitespace-nowrap">
+                  <Sparkles className="h-3 w-3 text-sky-500" />
+                  {product.matchNote}
                 </span>
               )}
             </div>

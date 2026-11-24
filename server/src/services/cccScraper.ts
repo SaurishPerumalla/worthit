@@ -47,6 +47,11 @@ export async function fetchCccPriceHistory(asin: string, fallbackCurrentPrice?: 
       return createBaselineHistoricalData(asin, chartUrl, fallbackCurrentPrice, fallbackListPrice);
     }
 
+    const meta = await sharp(buffer).metadata();
+    if (!meta.width || !meta.height || meta.width < 1600 || meta.height < 900) {
+      return createBaselineHistoricalData(asin, chartUrl, fallbackCurrentPrice, fallbackListPrice);
+    }
+
     // Crop the bottom table where CamelCamelCamel renders: Lowest, Highest, Current
     // Dimensions of chart: 1710 x 1026
     const croppedTable = await sharp(buffer)

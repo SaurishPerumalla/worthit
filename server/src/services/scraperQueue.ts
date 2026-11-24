@@ -150,6 +150,7 @@ export async function vetSingleProduct(
       historical,
       verdict,
       alternateMatches: resolved.alternateMatches,
+      matchNote: resolved.matchNote,
       scrapedAt: new Date().toISOString(),
       status: 'success'
     };

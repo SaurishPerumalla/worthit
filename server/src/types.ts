@@ -14,6 +14,7 @@ export interface AmazonProductData {
   image: string | null;
   alternateMatches: CandidateMatch[];
   isLatestTrackedPriceViaCcc?: boolean;
+  matchNote?: string;
 }
 
 export interface HistoricalPriceEntry {
@@ -74,6 +75,7 @@ export interface VettedProduct {
   historical: HistoricalPriceData;
   verdict: DealVerdict;
   alternateMatches: CandidateMatch[];
+  matchNote?: string;
   scrapedAt: string;
   status: 'success' | 'warning' | 'error';
   errorMessage?: string;
