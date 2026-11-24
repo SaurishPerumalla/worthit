@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, LineChart, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react';
+import { apiUrl } from '../utils/api.js';
 
 interface ChartDrawerProps {
   asin: string;
@@ -14,7 +15,7 @@ export const ChartDrawer: React.FC<ChartDrawerProps> = ({ asin, title }) => {
   const [imgError, setImgError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  const chartUrl = `/api/chart-proxy?asin=${asin}&tp=${timeRange}&_r=${retryKey}`;
+  const chartUrl = apiUrl(`/api/chart-proxy?asin=${asin}&tp=${timeRange}&_r=${retryKey}`);
 
   const timeRanges: { label: string; value: TimeRange }[] = [
     { label: 'All Time', value: 'all' },

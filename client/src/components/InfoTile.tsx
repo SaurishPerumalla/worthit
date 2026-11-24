@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingDown, Tag, ShieldCheck, ArrowRight } from 'lucide-react';
-import { PriceSentryLogo } from './Logo.js';
+import { DealChaserLogo } from './Logo.js';
 
 interface InfoTileProps {
   onQuickSearch?: (query: string) => void;
@@ -15,14 +15,14 @@ const EXAMPLE_QUERIES = [
 export const InfoTile: React.FC<InfoTileProps> = ({ onQuickSearch }) => {
   return (
     <section
-      aria-label="About PriceSentry"
+      aria-label="About DealChaser"
       className="text-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-5 py-8 sm:py-9 shadow-sm dark:shadow-none space-y-5 transition-colors"
     >
-      <PriceSentryLogo size="lg" className="mx-auto" />
+      <DealChaserLogo size="lg" className="mx-auto" />
 
       <div className="space-y-1.5">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-          How PriceSentry Works
+          How DealChaser Works
         </h2>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
           Spot fake discounts using real price history and compare live deals across{' '}

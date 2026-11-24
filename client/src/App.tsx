@@ -7,6 +7,7 @@ import { ProductCard } from './components/ProductCard.js';
 import { InfoTile } from './components/InfoTile.js';
 import { VettedProduct, ScrapeProgressEvent } from './types.js';
 import { reEvaluateProducts } from './utils/evaluator.js';
+import { apiUrl } from './utils/api.js';
 import { AlertCircle, ShoppingCart, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -57,7 +58,7 @@ export const App: React.FC = () => {
     });
 
     try {
-      const response = await fetch('/api/vet-stream', {
+      const response = await fetch(apiUrl('/api/vet-stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items, threshold: strictnessThreshold })
@@ -150,7 +151,7 @@ export const App: React.FC = () => {
     });
 
     try {
-      const res = await fetch('/api/import-wishlist-url', {
+      const res = await fetch(apiUrl('/api/import-wishlist-url'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wishlistUrl: url })
@@ -290,7 +291,7 @@ export const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-white dark:bg-transparent mt-auto transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="font-semibold text-slate-700 dark:text-slate-300">PriceSentry</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300">DealChaser</span>
           <span className="text-[11px] text-slate-500 dark:text-slate-400">
             Made By: Saurish Perumalla, 2026
           </span>

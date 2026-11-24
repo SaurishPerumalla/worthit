@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Search, ListPlus, ExternalLink, Plus, Trash2, ArrowRight } from 'lucide-react';
+
+const SHOULD_AUTO_FOCUS = typeof window !== 'undefined' && !Capacitor.isNativePlatform() && window.innerWidth >= 640;
 
 export type InputMode = 'single' | 'wishlist' | 'url';
 
@@ -124,8 +127,8 @@ export const InputHub: React.FC<InputHubProps> = ({
                     onChange={(e) => setSingleInput(e.target.value)}
                     placeholder="Enter product name, paste link, or ASIN..."
                     disabled={isLoading}
-                    autoFocus
-                    className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-3 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all shadow-inner"
+                    autoFocus={SHOULD_AUTO_FOCUS}
+                    className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-3 pl-10 text-base sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all shadow-inner"
                   />
                   <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
                 </div>
@@ -317,8 +320,8 @@ export const InputHub: React.FC<InputHubProps> = ({
                     onChange={(e) => setWishlistUrl(e.target.value)}
                     placeholder="Paste public Wishlist URL (https://www.amazon.com/hz/wishlist/ls/...)"
                     disabled={isLoading}
-                    autoFocus
-                    className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-3 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all shadow-inner"
+                    autoFocus={SHOULD_AUTO_FOCUS}
+                    className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-3 pl-10 text-base sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all shadow-inner"
                   />
                   <ExternalLink className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
                 </div>

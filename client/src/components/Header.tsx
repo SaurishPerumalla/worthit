@@ -1,6 +1,6 @@
 import React from 'react';
 import { Moon, Sun, Activity } from 'lucide-react';
-import { PriceSentryLogo } from './Logo.js';
+import { DealChaserLogo } from './Logo.js';
 
 interface HeaderProps {
   darkMode: boolean;
@@ -14,10 +14,10 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, setDarkMode, activeIte
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Brand / Logo */}
         <div className="flex items-center space-x-3">
-          <PriceSentryLogo size="md" />
+          <DealChaserLogo size="md" />
           <div>
             <span className="font-black text-2xl tracking-tight text-slate-900 dark:text-white flex items-center transition-colors">
-              Price<span className="text-emerald-500 dark:text-emerald-400">Sentry</span>
+              Deal<span className="text-emerald-500 dark:text-emerald-400">Chaser</span>
             </span>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block transition-colors font-medium">
               Price History &amp; Deal Validator

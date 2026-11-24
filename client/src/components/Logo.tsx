@@ -5,7 +5,7 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const PriceSentryLogo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
+export const DealChaserLogo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
   const sizeMap = {
     sm: 'h-8 w-8 rounded-lg',
     md: 'h-10 w-10 rounded-xl',
