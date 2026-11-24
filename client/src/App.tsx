@@ -4,7 +4,7 @@ import { InputHub } from './components/InputHub.js';
 import { ProgressBar } from './components/ProgressBar.js';
 import { SummaryDashboard } from './components/SummaryDashboard.js';
 import { ProductCard } from './components/ProductCard.js';
-import { WorthItLogo } from './components/Logo.js';
+import { InfoTile } from './components/InfoTile.js';
 import { VettedProduct, ScrapeProgressEvent } from './types.js';
 import { reEvaluateProducts } from './utils/evaluator.js';
 import { AlertCircle, ShoppingCart, RefreshCw } from 'lucide-react';
@@ -314,16 +314,8 @@ export const App: React.FC = () => {
             </button>
           </div>
         ) : !isLoading ? (
-          /* Empty / Welcome State */
-          <div className="text-center py-12 px-4 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/30 shadow-sm dark:shadow-none space-y-4">
-            <WorthItLogo size="lg" className="mx-auto" />
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Is It Worth It?</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-lg mx-auto mt-1">
-                Enter a product name, Amazon link, or ASIN above to validate live deals against true historic pricing.
-              </p>
-            </div>
-          </div>
+          /* Empty / Welcome Info Tile */
+          <InfoTile onQuickSearch={handleScanSingle} />
         ) : null}
       </main>
 
@@ -331,8 +323,11 @@ export const App: React.FC = () => {
       <footer className="border-t border-slate-200 dark:border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-white dark:bg-transparent mt-auto transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="font-semibold text-slate-700 dark:text-slate-300">WorthIt</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            Made By: Saurish Perumalla, 2026
+          </span>
           <span className="font-mono text-[11px] text-slate-400 dark:text-slate-600">
-            Live Amazon Price &amp; Deal Validator
+            Live Price &amp; Deal Validator
           </span>
         </div>
       </footer>

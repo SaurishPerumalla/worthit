@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { VettedProduct, CandidateMatch } from '../types.js';
 import { ChartDrawer } from './ChartDrawer.js';
+import { RetailerPriceComparison } from './RetailerPriceComparison.js';
 
 interface ProductCardProps {
   product: VettedProduct;
@@ -261,6 +262,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSwitchVaria
             </span>
           </div>
         </div>
+
+        {/* Multi-Store Price Comparison (Target, Best Buy, Walmart) */}
+        <RetailerPriceComparison comparisons={product.retailerComparisons} />
 
         {/* Collapsible Chart Drawer Tile */}
         <div className="pt-1">

@@ -20,7 +20,7 @@ export const Header: React.FC<HeaderProps> = ({ darkMode, setDarkMode, activeIte
               Worth<span className="text-emerald-500 dark:text-emerald-400">It</span>
             </span>
             <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block transition-colors font-medium">
-              Amazon Price History &amp; Deal Validator
+              Price History &amp; Deal Validator
             </p>
           </div>
         </div>

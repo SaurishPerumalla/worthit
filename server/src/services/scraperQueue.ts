@@ -2,6 +2,7 @@ import { resolveInputToAsin } from './asinResolver.js';
 import { scrapeAmazonProduct } from './amazonScraper.js';
 import { fetchCccPriceHistory, buildCccChartUrl } from './cccScraper.js';
 import { evaluateDeal } from './vettingEngine.js';
+import { compareRetailers } from './retailerComparisonService.js';
 import { VettedProduct, ScrapeProgressEvent } from '../types.js';
 
 export type ProgressCallback = (event: ScrapeProgressEvent) => void;
@@ -135,6 +136,21 @@ export async function vetSingleProduct(
 
     const verdict = evaluateDeal(currentPrice, amazonData.listPrice, historical, thresholdPercent);
 
+    // Cross-Retailer Price Comparison (Target, Best Buy, Walmart)
+    let retailerComparisons: any[] | undefined;
+    try {
+      retailerComparisons = await compareRetailers(
+        amazonData.title || input,
+        currentPrice,
+        `https://www.amazon.com/dp/${asin}`,
+        amazonData.listPrice,
+        historical?.allTimeHigh?.price,
+        historical?.historicalAverage
+      );
+    } catch (retailerErr) {
+      console.warn('Cross-retailer comparison skipped:', retailerErr);
+    }
+
     const vettedProduct: VettedProduct = {
       asin,
       inputQuery: input,
@@ -151,6 +167,7 @@ export async function vetSingleProduct(
       verdict,
       alternateMatches: resolved.alternateMatches,
       matchNote: resolved.matchNote,
+      retailerComparisons,
       scrapedAt: new Date().toISOString(),
       status: 'success'
     };

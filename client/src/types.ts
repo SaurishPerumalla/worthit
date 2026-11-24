@@ -1,3 +1,14 @@
+export interface RetailerPriceComparison {
+  retailer: 'Amazon' | 'Best Buy' | 'Target' | 'Walmart';
+  price: number | null;
+  regularPrice?: number | null;
+  url: string;
+  inStock: boolean;
+  isLowestPrice: boolean;
+  savingsVsAmazon?: number;
+  label?: string;
+}
+
 export interface CandidateMatch {
   asin: string;
   title: string;
@@ -64,6 +75,7 @@ export interface VettedProduct {
   verdict: DealVerdict;
   alternateMatches: CandidateMatch[];
   matchNote?: string;
+  retailerComparisons?: RetailerPriceComparison[];
   scrapedAt: string;
   status: 'success' | 'warning' | 'error';
   errorMessage?: string;

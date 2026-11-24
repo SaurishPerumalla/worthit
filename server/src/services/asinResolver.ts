@@ -128,47 +128,93 @@ export async function resolveInputToAsin(input: string): Promise<ResolveResult> 
 }
 
 /**
+ * Extracts normalized brand/product generation number if present (e.g. "Switch 2" -> 2, "iPhone 18" -> 18).
+ */
+function extractGeneration(text: string): { num: number; raw: string } | null {
+  const clean = text.replace(/&#160;|&nbsp;/gi, ' ').replace(/[™®©\u00a0]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const m =
+    clean.match(/(?:iphone|watch(?:\s*se)?|galaxy|switch|playstation|ps|series|ultra|ipad|pixel|hero)\s*([0-9]{1,2})\b/i) ||
+    clean.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)\b/i);
+  if (!m) return null;
+  return { num: parseInt(m[1], 10), raw: m[0].trim() };
+}
+
+/**
  * Scores how well a product title matches the user's intent:
- * - Eliminates cases/covers/protectors/straps when the user is searching for a device.
+ * - Eliminates cases/covers/protectors/straps and standalone games when searching for hardware.
  * - Eliminates brand mismatches (e.g. Samsung/Google when searching for Apple iPhone).
- * - Prioritizes Core Hardware Entity: Exact Model Generation (e.g. iPhone 18 == 18) and Tier (Pro vs Pro Max).
- * - Treats color & cosmetic attributes as tiebreakers so a color variation never demotes an exact model match.
+ * - Prioritizes exact standalone requested hardware/entity FIRST, demoting bundles/add-ons/AppleCare+
+ *   into alternateMatches ("next best thing") unless the user explicitly requested a bundle.
+ * - Treats color & cosmetic attributes as tiebreakers.
  */
 export function scoreProductRelevance(title: string, query: string): number {
-  const t = title.toLowerCase();
-  const q = query.toLowerCase();
+  const cleanHtmlEntities = (s: string) =>
+    s.replace(/&#160;|&nbsp;/gi, ' ').replace(/[™®©\u00a0]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 
-  // 1. Heavy penalty if query is a device (phone/watch/laptop) and result is an accessory
-  const isAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film)\b/i.test(t);
-  const wantsDevice = /\b(iphone|ipad|macbook|galaxy|watch|airpods|headphone|pixel|phone|laptop|tablet|smartwatch)\b/i.test(q);
-  const wantsAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet)\b/i.test(q);
+  const t = cleanHtmlEntities(title);
+  const q = cleanHtmlEntities(query);
 
-  if (wantsDevice && !wantsAccessory && isAccessory) {
-    return -100; // eliminate accessories when user wants a device
+  // 1. Heavy penalty if query is hardware/device and result is a standalone accessory
+  const wantsAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film|grip|dock|controller|joy-con|carrying)\b/i.test(q);
+  const wantsDevice = /\b(iphone|ipad|macbook|imac|galaxy|watch|smartwatch|airpods|headphone|earbud|pixel|phone|laptop|tablet|switch|playstation|ps[45]|xbox|steam\s*deck|rog\s*ally|quest|console|tv|monitor|camera|speaker|dyson|kindle)\b/i.test(q);
+
+  if (wantsDevice && !wantsAccessory) {
+    const isAccessoryPhrase =
+      /\b(case for|cover for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|thumb grip|racing wheel|memory card|microsd|express card)\b/i.test(t) ||
+      /^(case|cover|screen protector|tempered glass|strap|replacement band|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
+
+    const isWatchOrBuds = /\b(apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch|airpods)\b/i.test(t);
+    const hasGenericAccessoryToken = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film)\b/i.test(t);
+
+    if (isAccessoryPhrase || (!isWatchOrBuds && hasGenericAccessoryToken)) {
+      return -100; // eliminate accessories when user wants a device
+    }
   }
 
-  // 2. Heavy penalty if brand mismatch
+  // 2. Heavy penalty if brand / platform mismatch
   if (q.includes('iphone') && !t.includes('iphone')) return -50;
   if (q.includes('galaxy') && !t.includes('galaxy')) return -50;
   if (q.includes('pixel') && !t.includes('pixel')) return -50;
+  if (q.includes('nintendo switch') && !t.includes('switch')) return -50;
+  if (/\bps5\b|\bplaystation\s*5\b/i.test(q) && !/\b(ps5|playstation\s*5)\b/i.test(t)) return -50;
+
+  // 2b. Console Hardware vs Standalone Game / Software separation
+  const wantsConsole = /\b(nintendo\s*switch(?:\s*2|\s*oled|\s*lite)?|switch\s*2|playstation\s*[45]|ps[45]|xbox\s*series\s*[xs]|steam\s*deck|rog\s*ally)\b/i.test(q);
+  const wantsGame = /\b(mario|zelda|pokemon|pokémon|kirby|metroid|donkey\s*kong|splatoon|smash|kart|party|maker|wonder|bananza|galaxy|edition|game|digital|code|amiibo)\b/i.test(q);
+  if (wantsConsole && !wantsGame) {
+    const hasHardwareNoun = /\b(system|console|standard\s*edition|disc\s*edition|digital\s*edition)\b/i.test(t);
+    const isGameOrSoftware =
+      /\b(mario|zelda|pokemon|pokémon|kirby|metroid|donkey\s*kong|splatoon|smash|jamboree|bananza|air\s*riders|digital\s*code|full\s*game|game\s*card|key-card|starter\s*pack)\b/i.test(t) ||
+      /-\s*nintendo\s*switch/i.test(t) ||
+      /\bswitch\s*2\s*edition\b/i.test(t) ||
+      /\[\s*(?:digital|online\s*game\s*code|full\s*game)\s*\]/i.test(t);
+
+    if (isGameOrSoftware && !hasHardwareNoun && !/\bbundle\b/i.test(t)) {
+      return -80; // do not treat standalone video games as consoles
+    }
+  }
 
   let score = 100; // baseline for valid hardware
 
   // 3. Exact Generation matching (Highest Priority entity match)
-  const qNumMatch = q.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || q.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
-  const tNumMatch = t.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || t.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
-  if (qNumMatch && tNumMatch) {
-    const qNum = parseInt(qNumMatch[1], 10);
-    const tNum = parseInt(tNumMatch[1], 10);
-    if (qNum === tNum) {
-      score += 60; // Huge boost for exact requested generation (e.g. 18 == 18)
+  const qGen = extractGeneration(q);
+  const tGen = extractGeneration(t);
+  if (qGen && tGen) {
+    if (qGen.num === tGen.num) {
+      score += 60; // Huge boost for exact requested generation (e.g. 18 == 18, Switch 2 == Switch 2)
     } else {
-      const diff = Math.abs(qNum - tNum);
-      score -= diff * 20; // Prior generations penalised relative to exact requested generation
+      const diff = Math.abs(qGen.num - tGen.num);
+      score -= diff * 25; // Prior generations penalized relative to exact requested generation
     }
+  } else if (qGen && !tGen) {
+    score -= 35; // Penalize unnumbered earlier generations when a numbered generation was requested
   }
 
-  // 4. Hardware Tier Alignment (Pro, Pro Max, Plus, Ultra, SE)
+  if (wantsConsole && !wantsGame && /\b(system|console)\b/i.test(t)) {
+    score += 35; // Strong boost for explicit standalone console hardware
+  }
+
+  // 4. Hardware Tier Alignment (Pro, Pro Max, Plus, Ultra, OLED, Lite)
   const wantsProMax = /\bpro\s*max\b/i.test(q);
   const hasProMax = /\bpro\s*max\b/i.test(t);
   const wantsPro = /\bpro\b/i.test(q) && !wantsProMax;
@@ -179,7 +225,7 @@ export function scoreProductRelevance(title: string, query: string): number {
     else score -= 25;
   } else if (wantsPro) {
     if (hasPro) score += 30;
-    else if (hasProMax) score += 10; // Pro Max is acceptable alternate if no Pro, but ranks lower
+    else if (hasProMax) score += 10;
     else score -= 30;
   }
 
@@ -187,6 +233,9 @@ export function scoreProductRelevance(title: string, query: string): number {
   const hasUltra = /\bultra\b/i.test(t);
   if (wantsUltra && hasUltra) score += 30;
   else if (wantsUltra && !hasUltra) score -= 30;
+
+  if (!/\boled\b/i.test(q) && /\boled\b/i.test(t) && q.includes('switch')) score -= 25;
+  if (!/\blite\b/i.test(q) && /\blite\b/i.test(t) && q.includes('switch')) score -= 30;
 
   // 5. Storage Capacity Match (256gb, 512gb, 128gb, 1tb)
   const storageMatch = q.match(/\b([0-9]{2,4}\s*(?:gb|tb))\b/i);
@@ -214,14 +263,33 @@ export function scoreProductRelevance(title: string, query: string): number {
     }
   }
 
-  // 7. AppleCare+ / Extended Warranty / Insurance Bundles
-  // Always prioritize standalone hardware over AppleCare+ bundles unless user explicitly requested it
-  const wantsCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance)\b/i.test(q);
-  const hasCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance)\b/i.test(t);
+  // 7. Bundles, Kits, Warranties & Add-ons
+  // Always prioritize standalone base product first; keep bundles as "next best thing" alternates unless requested
+  const wantsCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance|geek\s*squad)\b/i.test(q);
+  const hasCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance|geek\s*squad)\b/i.test(t);
   if (!wantsCare && hasCare) {
-    score -= 45; // Substantial penalty so non-AppleCare devices always rank first
+    score -= 55;
   } else if (wantsCare && hasCare) {
     score += 25;
+  }
+
+  const wantsBundle = /\b(bundle|pack|kit|combo|set|includes|membership|starter|value)\b|\b(?:mario|zelda|pokemon|pokémon|kart|sports|game)\b|\s\+\s(?!cellular\b)/i.test(q);
+  const hasBundle =
+    /\s\+\s(?!cellular\b)/i.test(t) ||
+    /\b(bundle|starter\s*kit|value\s*pack|combo\s*pack|gift\s*set|includes\b|membership|game\s*bundle|with\s+(?:mario|zelda|pokemon|pokémon|sports|game|controller|extra|carrying\s*case|sd\s*card|microsd))\b/i.test(t);
+  if (!wantsBundle && hasBundle) {
+    score -= 55;
+  } else if (wantsBundle && hasBundle) {
+    score += 25;
+  }
+
+  // 7b. Refurbished / Open-Box penalty when user expects Brand New
+  const wantsRefurb = /\b(renewed|refurbished|pre-owned|preowned|used|open[\s-]*box|restored)\b/i.test(q);
+  const hasRefurb = /\b(renewed|refurbished|pre-owned|preowned|used|open[\s-]*box|restored)\b/i.test(t);
+  if (!wantsRefurb && hasRefurb) {
+    score -= 70;
+  } else if (wantsRefurb && hasRefurb) {
+    score += 30;
   }
 
   // 8. Cellular / GPS connectivity alignment (Apple Watches, iPads, Tablets)
@@ -231,6 +299,8 @@ export function scoreProductRelevance(title: string, query: string): number {
     score += 25;
   } else if (wantsCellular && !hasCellular) {
     score -= 25; // Penalize GPS-only when user specifically requested cellular
+  } else if (!wantsCellular && /\b(watch|smartwatch)\b/i.test(q) && hasCellular) {
+    score -= 20; // Penalize Cellular when user asked for base GPS watch
   }
 
   // 9. Case / Display size alignment (e.g. 40mm, 44mm, 41mm, 45mm, 49mm)
@@ -244,7 +314,7 @@ export function scoreProductRelevance(title: string, query: string): number {
     }
   }
 
-  // 10. General Keyword Coverage
+  // 10. General Keyword Coverage & Conciseness (Clean exact base titles beat bloated variants)
   const keywords = q.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
   for (const kw of keywords) {
     if (t.includes(kw)) {
@@ -252,8 +322,14 @@ export function scoreProductRelevance(title: string, query: string): number {
     }
   }
 
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'new', 'model', 'system', 'console', 'smartwatch', 'unlocked', 'edition']);
+  const qTokens = new Set(q.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 0 && !stopWords.has(w)));
+  const tTokens = t.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 0 && !stopWords.has(w));
+  const extraTokens = tTokens.filter(w => !qTokens.has(w)).length;
+  score += Math.max(0, 20 - extraTokens * 2);
+
   if (t.includes('unlocked')) score += 5;
-  if (!t.includes('renewed')) score += 5;
+  if (!hasRefurb) score += 5;
 
   return score;
 }
@@ -424,11 +500,11 @@ export async function searchAmazonForCandidates(query: string): Promise<ResolveR
   const alternates = bestCandidates.slice(1, 5);
 
   let matchNote: string | undefined;
-  const qNumMatch = query.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || query.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
-  const pNumMatch = primary.title.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || primary.title.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
+  const qGen = extractGeneration(query);
+  const pGen = extractGeneration(primary.title);
 
-  if (qNumMatch && pNumMatch && parseInt(qNumMatch[1], 10) !== parseInt(pNumMatch[1], 10)) {
-    matchNote = `Closest available generation (${pNumMatch[0]})`;
+  if (qGen && pGen && qGen.num !== pGen.num) {
+    matchNote = `Closest available generation (${pGen.raw})`;
   } else if (isClosestMatch) {
     matchNote = 'Closest match based on search intent';
   } else {
