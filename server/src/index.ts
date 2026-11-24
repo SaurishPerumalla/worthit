@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { vetSingleProduct, processQueueWithConcurrency } from './services/scraperQueue.js';
 import { importAmazonWishlist } from './services/wishlistImporter.js';
 import { evaluateDeal } from './services/vettingEngine.js';
+import { warmUpCccWorker } from './services/cccScraper.js';
 import { VettedProduct, ScrapeProgressEvent } from './types.js';
 
 dotenv.config();
@@ -119,13 +120,15 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
       2
     );
 
-    sendEvent({
-      step: 4,
-      totalSteps: 4,
-      stage: 'done',
-      message: `Completed scan for all ${products.length} items.`,
-      totalItems: cleanItems.length
-    });
+    if (cleanItems.length > 1 && products.length > 0) {
+      sendEvent({
+        step: 4,
+        totalSteps: 4,
+        stage: 'done',
+        message: `Completed scan for all ${products.length} items.`,
+        totalItems: cleanItems.length
+      });
+    }
 
     res.write('event: complete\ndata: {"status":"complete"}\n\n');
     res.end();
@@ -234,4 +237,5 @@ if (fs.existsSync(clientDistPath)) {
 
 app.listen(PORT, () => {
   console.log(`🚀 CamelScout Pro Server running on http://localhost:${PORT}`);
+  warmUpCccWorker();
 });

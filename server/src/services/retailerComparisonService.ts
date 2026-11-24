@@ -1,5 +1,35 @@
 import { RetailerPriceComparison } from '../types.js';
-import { scoreProductRelevance } from './asinResolver.js';
+import { scoreProductRelevance, extractGeneration } from './asinResolver.js';
+
+/**
+ * Shared strict compatibility gate for cross-store price comparison candidates:
+ * enforces brand/device relevance, rejects accessories & unrequested refurbished units,
+ * and blocks cross-generation mismatches (e.g. AirPods Pro 2 vs 3, Watch SE 2 vs 3).
+ */
+function scoreStrictRetailerMatch(candidateTitle: string, targetQuery: string): number {
+  const score = scoreProductRelevance(candidateTitle, targetQuery);
+  if (score < 0) return -1;
+
+  const wantsRefurb = /\b(renewed|refurbished|pre-owned|preowned|used|open[\s-]*box|restored)\b/i.test(targetQuery);
+  const isRefurb = /\b(renewed|refurbished|pre-owned|preowned|used|open[\s-]*box|restored)\b/i.test(candidateTitle);
+  if (!wantsRefurb && isRefurb) return -1;
+
+  const qGen = extractGeneration(targetQuery);
+  const tGen = extractGeneration(candidateTitle);
+  if (qGen && (!tGen || qGen.num !== tGen.num)) {
+    return -1;
+  }
+
+  const qXm = targetQuery.match(/(?:wh|wf)-?1000xm([0-9]{1,2})|\bxm([0-9]{1,2})\b/i);
+  const tXm = candidateTitle.match(/(?:wh|wf)-?1000xm([0-9]{1,2})|\bxm([0-9]{1,2})\b/i);
+  const qXmNum = qXm?.[1] || qXm?.[2];
+  const tXmNum = tXm?.[1] || tXm?.[2];
+  if (qXmNum && tXmNum && qXmNum !== tXmNum) {
+    return -1;
+  }
+
+  return score;
+}
 
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
@@ -71,13 +101,13 @@ function determineBaselineMSRP(
  * pull live child variations and direct product links reliably even when RedSky/search limits cloud IPs.
  */
 const TARGET_TCIN_SEEDS: Array<{
-  keyword: string;
+  keywords: string[];
   tcin: string;
   fallbackBaseUrl: string;
   verifiedFallback?: (query: string) => { price: number; regularPrice: number | null; label: string; url?: string } | null;
 }> = [
   {
-    keyword: 'apple watch se',
+    keywords: ['apple watch se', 'watch se 3', 'watch se 2'],
     tcin: '94966464',
     fallbackBaseUrl: 'https://www.target.com/p/apple-watch-se-3/-/A-94966464',
     verifiedFallback: (q: string) => {
@@ -94,7 +124,7 @@ const TARGET_TCIN_SEEDS: Array<{
     }
   },
   {
-    keyword: 'nintendo switch 2',
+    keywords: ['nintendo switch 2'],
     tcin: '94693225',
     fallbackBaseUrl: 'https://www.target.com/p/nintendo-switch-2-console/-/A-94693225',
     verifiedFallback: (q: string) => {
@@ -107,9 +137,8 @@ const TARGET_TCIN_SEEDS: Array<{
 ];
 
 /**
- * Resolves live Target product data and direct product link,
- * inspecting Target's live RedSky PDP API (and Target PDP SSR HTML if RedSky limits cloud IPs)
- * and ranking child variations with `scoreProductRelevance` so base items always beat bundles.
+ * Resolves live Target product data and direct product link by running RedSky PDP
+ * and Target SSR HTML concurrently so cloud blocks never trigger sequential timeout stacks.
  */
 export async function resolveTargetLiveProduct(
   targetQuery: string,
@@ -118,96 +147,115 @@ export async function resolveTargetLiveProduct(
 ): Promise<InternalComparison | null> {
   const lowerQuery = targetQuery.toLowerCase();
   const linkTcinMatch = directTargetLink?.match(/\/-\/A-([0-9]+)/i);
-  const seed = TARGET_TCIN_SEEDS.find(s => lowerQuery.includes(s.keyword));
+  const seed = TARGET_TCIN_SEEDS.find(s => s.keywords.some(kw => lowerQuery.includes(kw)));
   const tcin = linkTcinMatch?.[1] || seed?.tcin;
 
   if (tcin) {
-    // 1. Query Target RedSky PDP client directly (4s timeout)
-    try {
-      const pdpUrl = `https://redsky.target.com/redsky_aggregations/v1/web/pdp_client_v1?key=9f36aeafbe60771e321a7cc95a78140772ab3e96&tcin=${tcin}&pricing_store_id=3991&visitor_id=018c123456789`;
-      const pdpRes = await fetchWithTimeout(pdpUrl, {
-        headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' }
-      }, 3800);
+    const ssrAbort = new AbortController();
+    const ssrTimer = setTimeout(() => ssrAbort.abort(), 2400);
 
-      if (pdpRes.ok) {
-        const pdpData: any = await pdpRes.json();
-        const root = pdpData?.data?.product;
-        const rawNodes = Array.isArray(root?.children) && root.children.length > 0 ? root.children : [root];
-
-        const rankedNodes = rawNodes
-          .filter(Boolean)
-          .map((node: any) => {
-            const title = normalizeText(node?.item?.product_description?.title || root?.item?.product_description?.title || '');
-            const price = node?.price?.current_retail ?? node?.price?.current_retail_min;
-            const regPrice = node?.price?.reg_retail ?? node?.price?.reg_retail_max ?? null;
-            const buyUrl = node?.item?.enrichment?.buy_url || root?.item?.enrichment?.buy_url;
-            return {
-              title,
-              price,
-              regPrice,
-              buyUrl,
-              score: scoreProductRelevance(title, targetQuery)
-            };
-          })
-          .filter((x: any) => x.score >= 0 && typeof x.price === 'number' && x.price > 0 && x.buyUrl && !(amazonPrice > 50 && x.price < amazonPrice * 0.4))
-          .sort((a: any, b: any) => b.score - a.score);
-
-        if (rankedNodes.length > 0) {
-          const best = rankedNodes[0];
-          const isSale = typeof best.regPrice === 'number' && best.regPrice > best.price;
-          return {
-            retailer: 'Target',
-            price: Number(best.price.toFixed(2)),
-            regularPrice: best.regPrice ? Number(best.regPrice.toFixed(2)) : null,
-            url: best.buyUrl,
-            inStock: true,
-            isLowestPrice: false,
-            label: isSale ? 'Sale' : 'Target Price',
-            verifiedLive: true
-          };
-        }
-      }
-    } catch (err) {
-      console.warn('Target RedSky PDP lookup warning:', err);
-    }
-
-    // 2. Cloud-resilient fallback: Target SSR PDP HTML (3.5s) + verified direct product fallback
-    if (seed) {
-      let bestUrl = seed.fallbackBaseUrl;
+    const redSkyPromise = (async (): Promise<InternalComparison | null> => {
       try {
-        const pageRes = await fetchWithTimeout(seed.fallbackBaseUrl, {
-          headers: { ...BROWSER_HEADERS, 'Accept': 'text/html' }
-        }, 3500);
-        if (pageRes.ok) {
-          const html = await pageRes.text();
-          const candidates: Array<{ tcin: string; title: string; score: number }> = [];
-          const regex = /"tcin":"([0-9]{6,12})","title":"([^"]+)"/g;
-          let m: RegExpExecArray | null;
-          while ((m = regex.exec(html)) !== null) {
-            const cTitle = normalizeText(m[2].replace(/\\u0026#160;|\\u0026nbsp;/gi, ' ').replace(/\\u0026/g, '&'));
-            const score = scoreProductRelevance(cTitle, targetQuery);
-            if (score >= 0) {
-              candidates.push({ tcin: m[1], title: cTitle, score });
-            }
-          }
-          candidates.sort((a, b) => b.score - a.score);
-          if (candidates.length > 0) {
-            const top = candidates[0];
-            const slug = top.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            bestUrl = `https://www.target.com/p/${slug}/-/A-${top.tcin}`;
+        const pdpUrl = `https://redsky.target.com/redsky_aggregations/v1/web/pdp_client_v1?key=9f36aeafbe60771e321a7cc95a78140772ab3e96&tcin=${tcin}&pricing_store_id=3991&visitor_id=018c123456789`;
+        const pdpRes = await fetchWithTimeout(pdpUrl, {
+          headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' }
+        }, 2500);
+
+        if (pdpRes.ok) {
+          const pdpData: any = await pdpRes.json();
+          const root = pdpData?.data?.product;
+          const rawNodes = Array.isArray(root?.children) && root.children.length > 0 ? root.children : [root];
+
+          const rankedNodes = rawNodes
+            .filter(Boolean)
+            .map((node: any) => {
+              const title = normalizeText(node?.item?.product_description?.title || root?.item?.product_description?.title || '');
+              const price = node?.price?.current_retail ?? node?.price?.current_retail_min;
+              const regPrice = node?.price?.reg_retail ?? node?.price?.reg_retail_max ?? null;
+              const buyUrl = node?.item?.enrichment?.buy_url || root?.item?.enrichment?.buy_url;
+              return {
+                title,
+                price,
+                regPrice,
+                buyUrl,
+                score: scoreStrictRetailerMatch(title, targetQuery)
+              };
+            })
+            .filter((x: any) => x.score >= 0 && typeof x.price === 'number' && x.price > 0 && x.buyUrl && !(amazonPrice > 50 && x.price < amazonPrice * 0.4))
+            .sort((a: any, b: any) => b.score - a.score);
+
+          if (rankedNodes.length > 0) {
+            const best = rankedNodes[0];
+            const isSale = typeof best.regPrice === 'number' && best.regPrice > best.price;
+            return {
+              retailer: 'Target',
+              price: Number(best.price.toFixed(2)),
+              regularPrice: best.regPrice ? Number(best.regPrice.toFixed(2)) : null,
+              url: best.buyUrl,
+              inStock: true,
+              isLowestPrice: false,
+              label: isSale ? 'Sale' : 'Target Price',
+              verifiedLive: true
+            };
           }
         }
       } catch (err) {
-        console.warn('Target PDP HTML lookup warning:', err);
+        console.warn('Target RedSky PDP lookup warning:', err);
       }
+      return null;
+    })();
 
+    const ssrFallbackPromise = seed
+      ? (async (): Promise<string> => {
+          try {
+            const pageRes = await fetch(seed.fallbackBaseUrl, {
+              headers: { ...BROWSER_HEADERS, 'Accept': 'text/html' },
+              signal: ssrAbort.signal
+            });
+            if (pageRes.ok) {
+              const html = await pageRes.text();
+              const candidates: Array<{ tcin: string; title: string; score: number }> = [];
+              const regex = /"tcin":"([0-9]{6,12})","title":"([^"]+)"/g;
+              let m: RegExpExecArray | null;
+              while ((m = regex.exec(html)) !== null) {
+                const cTitle = normalizeText(m[2].replace(/\\u0026#160;|\\u0026nbsp;/gi, ' ').replace(/\\u0026/g, '&'));
+                const score = scoreStrictRetailerMatch(cTitle, targetQuery);
+                if (score >= 0) {
+                  candidates.push({ tcin: m[1], title: cTitle, score });
+                }
+              }
+              candidates.sort((a, b) => b.score - a.score);
+              if (candidates.length > 0) {
+                const top = candidates[0];
+                const slug = top.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                return `https://www.target.com/p/${slug}/-/A-${top.tcin}`;
+              }
+            }
+          } catch {
+            // Aborted cleanly if RedSky returned first, or timed out on cloud IP
+          } finally {
+            clearTimeout(ssrTimer);
+          }
+          return seed.fallbackBaseUrl;
+        })()
+      : Promise.resolve('');
+
+    const redSkyResult = await redSkyPromise;
+    if (redSkyResult) {
+      ssrAbort.abort();
+      clearTimeout(ssrTimer);
+      return redSkyResult;
+    }
+
+    if (seed) {
+      const bestUrl = await ssrFallbackPromise;
       const fb = seed.verifiedFallback?.(targetQuery);
       if (fb) {
         return {
           retailer: 'Target',
           price: fb.price,
           regularPrice: fb.regularPrice,
-          url: bestUrl !== seed.fallbackBaseUrl ? bestUrl : (fb.url || seed.fallbackBaseUrl),
+          url: bestUrl && bestUrl !== seed.fallbackBaseUrl ? bestUrl : (fb.url || seed.fallbackBaseUrl),
           inStock: true,
           isLowestPrice: false,
           label: fb.label,
@@ -224,13 +272,13 @@ export async function resolveTargetLiveProduct(
  * Known US Walmart hub URLs & verified fallback catalog if cloud datacenter IPs are challenged.
  */
 const WALMART_PRODUCT_SEEDS: Array<{
-  keyword: string;
+  keywords: string[];
   url: string;
   bundleOnly?: boolean;
   verifiedFallback: (query: string) => { price: number; regularPrice: number | null; url: string; label: string } | null;
 }> = [
   {
-    keyword: 'apple watch se',
+    keywords: ['apple watch se', 'watch se 3', 'watch se 2'],
     url: 'https://www.walmart.com/ip/Apple-Watch-SE-3-GPS-Cellular-40mm-Midnight-Aluminum-Case-with-Navy-Blue-Sport-Band-S-M/20981302291',
     verifiedFallback: (q: string) => {
       const wantsCell = /\b(cellular|lte)\b/i.test(q);
@@ -252,7 +300,7 @@ const WALMART_PRODUCT_SEEDS: Array<{
     }
   },
   {
-    keyword: 'nintendo switch 2',
+    keywords: ['nintendo switch 2'],
     url: 'https://www.walmart.com/ip/Nintendo-Switch-2-System/20436618635',
     bundleOnly: false,
     verifiedFallback: () => ({
@@ -263,7 +311,7 @@ const WALMART_PRODUCT_SEEDS: Array<{
     })
   },
   {
-    keyword: 'airpods pro 3',
+    keywords: ['airpods pro 3'],
     url: 'https://www.walmart.com/ip/AirPods-Pro-3/17835006350',
     bundleOnly: false,
     verifiedFallback: () => ({
@@ -279,7 +327,7 @@ function getWalmartSeedFallback(targetQuery: string): InternalComparison | null 
   const lower = targetQuery.toLowerCase();
   const wantsBundle = /\b(bundle|pack|kit|combo|includes|with\s+(?:mario|zelda|game))\b|\s\+\s(?!cellular\b)/i.test(lower);
   for (const seed of WALMART_PRODUCT_SEEDS) {
-    if (lower.includes(seed.keyword)) {
+    if (seed.keywords.some(kw => lower.includes(kw))) {
       if (seed.bundleOnly === false && wantsBundle) continue;
       const fb = seed.verifiedFallback(targetQuery);
       if (fb) {
@@ -324,7 +372,7 @@ export async function resolveWalmartLiveProduct(linkOrUrl: string, targetQuery: 
         ...BROWSER_HEADERS,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
       }
-    }, 3500);
+    }, 2500);
 
     if (!pageRes.ok) return getWalmartSeedFallback(targetQuery);
     const html = await pageRes.text();
@@ -383,7 +431,7 @@ export async function resolveWalmartLiveProduct(linkOrUrl: string, targetQuery: 
             ...BROWSER_HEADERS,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
           }
-        }, 3500);
+        }, 2200);
         if (vRes.ok) {
           const vHtml = await vRes.text();
           const vm = vHtml.match(/<script id="__NEXT_DATA__" type="application\/json"[^>]*>([\s\S]*?)<\/script>/);
@@ -397,7 +445,7 @@ export async function resolveWalmartLiveProduct(linkOrUrl: string, targetQuery: 
     }
 
     const resolvedName = normalizeText(product.name || '');
-    if (resolvedName && scoreProductRelevance(resolvedName, targetQuery) < 0) {
+    if (resolvedName && scoreStrictRetailerMatch(resolvedName, targetQuery) < 0) {
       return null;
     }
 
@@ -472,7 +520,7 @@ function getBestBuyCloudFallback(targetQuery: string): InternalComparison | null
     };
   }
 
-  if (q.includes('apple watch se')) {
+  if (q.includes('apple watch se') || q.includes('watch se 3') || q.includes('watch se 2')) {
     const wantsCellular = /\b(cellular|lte)\b/i.test(q);
     const wants44 = /\b44\s*mm\b/i.test(q);
     if (wantsCellular) {
@@ -528,7 +576,7 @@ async function searchBestBuyLiveCatalog(targetQuery: string, amazonPrice: number
         ...BROWSER_HEADERS,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       }
-    }, 4500);
+    }, 2600);
 
     if (!res.ok) return null;
     const html = await res.text();
@@ -601,7 +649,7 @@ async function searchBestBuyLiveCatalog(targetQuery: string, amazonPrice: number
       const p1Last = p1Matches.length ? p1Matches[p1Matches.length - 1][1] : undefined;
       const skuId = afterPdpM?.[1] || afterPdpM?.[3] || urlSkuM?.[1] || p1Last;
 
-      let score = scoreProductRelevance(rawName, targetQuery);
+      let score = scoreStrictRetailerMatch(rawName, targetQuery);
       if (score < 0) continue;
 
       const wantsGame = /\b(mario|zelda|pokemon|pokémon|kirby|metroid|donkey\s*kong|game|edition|digital)\b/i.test(targetQuery);
@@ -675,7 +723,7 @@ export async function resolveBestBuyLiveProduct(
   if (skuCandidate) {
     try {
       const url = `https://www.bestbuy.com/api/3.0/priceBlocks?skus=${skuCandidate}`;
-      const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' } }, 3000);
+      const res = await fetchWithTimeout(url, { headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' } }, 2000);
       if (res.ok) {
         const data: any = await res.json();
         const item = data?.[0]?.sku;
@@ -684,7 +732,7 @@ export async function resolveBestBuyLiveProduct(
         const shortName = item?.names?.short || '';
         const isRefurb = item?.condition === 'refurbished' || /\brefurbished\b/i.test(shortName);
 
-        if (!isRefurb && typeof p === 'number' && p > 0 && item?.url && scoreProductRelevance(shortName, targetQuery) >= 0) {
+        if (!isRefurb && typeof p === 'number' && p > 0 && item?.url && scoreStrictRetailerMatch(shortName, targetQuery) >= 0) {
           const directUrl = item.url.startsWith('http') ? item.url : `https://www.bestbuy.com${item.url}`;
           const isSale = typeof reg === 'number' && reg > p;
           return {
@@ -728,13 +776,13 @@ async function fetchAggregatedMerchants(query: string, amazonPrice: number): Pro
     const cleanQ = cleanQueryForRetailers(query);
     const upcUrl = `https://api.upcitemdb.com/prod/trial/search?s=${encodeURIComponent(cleanQ)}&type=product`;
 
-    const res = await fetchWithTimeout(upcUrl, { headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' } }, 2800);
+    const res = await fetchWithTimeout(upcUrl, { headers: { ...BROWSER_HEADERS, 'Accept': 'application/json' } }, 1600);
 
     if (res.ok) {
       const data: any = await res.json();
       const items: any[] = data.items || [];
       const rankedItems = items
-        .map(item => ({ item, score: scoreProductRelevance(item.title || '', query) }))
+        .map(item => ({ item, score: scoreStrictRetailerMatch(item.title || '', query) }))
         .filter(x => x.score >= 0)
         .sort((a, b) => b.score - a.score);
 
@@ -806,7 +854,7 @@ export async function compareRetailers(
 
   let walmartSeedUrl: string | undefined;
   for (const seed of WALMART_PRODUCT_SEEDS) {
-    if (lowerTitle.includes(seed.keyword)) {
+    if (seed.keywords.some(kw => lowerTitle.includes(kw))) {
       if (seed.bundleOnly === false && wantsBundle) continue;
       walmartSeedUrl = seed.url;
       break;
@@ -815,26 +863,37 @@ export async function compareRetailers(
 
   const merchantPromise = fetchAggregatedMerchants(productTitle, amazonPrice);
 
-  const [merchantData, targetMatch, bestBuyMatch, initialWalmartMatch] = await Promise.all([
-    merchantPromise,
+  const [targetMatch, bestBuyMatch, initialWalmartMatch] = await Promise.all([
     resolveTargetLiveProduct(productTitle, amazonPrice),
     resolveBestBuyLiveProduct(productTitle, amazonPrice),
     walmartSeedUrl ? resolveWalmartLiveProduct(walmartSeedUrl, productTitle) : Promise.resolve(null)
   ]);
 
-  let walmartMatch = initialWalmartMatch;
-  if (!walmartMatch && merchantData.rawWalmartLink) {
-    walmartMatch = await resolveWalmartLiveProduct(merchantData.rawWalmartLink, productTitle);
-  }
-
   let finalTargetMatch = targetMatch;
-  if (!finalTargetMatch && merchantData.rawTargetLink) {
-    finalTargetMatch = await resolveTargetLiveProduct(productTitle, amazonPrice, merchantData.rawTargetLink);
-  }
-
   let finalBestBuyMatch = bestBuyMatch;
-  if (!finalBestBuyMatch && merchantData.rawBestBuySku) {
-    finalBestBuyMatch = await resolveBestBuyLiveProduct(productTitle, amazonPrice, merchantData.rawBestBuySku);
+  let walmartMatch = initialWalmartMatch;
+  let merchantHighestRegularPrice: number | null = null;
+
+  // Only wait on secondary merchant aggregator if at least one retailer did not match directly
+  if (!finalTargetMatch || !finalBestBuyMatch || !walmartMatch) {
+    const merchantData = await merchantPromise;
+    merchantHighestRegularPrice = merchantData.highestRegularPrice;
+
+    const [retryTarget, retryBestBuy, retryWalmart] = await Promise.all([
+      !finalTargetMatch && merchantData.rawTargetLink
+        ? resolveTargetLiveProduct(productTitle, amazonPrice, merchantData.rawTargetLink)
+        : Promise.resolve(null),
+      !finalBestBuyMatch && merchantData.rawBestBuySku
+        ? resolveBestBuyLiveProduct(productTitle, amazonPrice, merchantData.rawBestBuySku)
+        : Promise.resolve(null),
+      !walmartMatch && merchantData.rawWalmartLink
+        ? resolveWalmartLiveProduct(merchantData.rawWalmartLink, productTitle)
+        : Promise.resolve(null)
+    ]);
+
+    if (retryTarget) finalTargetMatch = retryTarget;
+    if (retryBestBuy) finalBestBuyMatch = retryBestBuy;
+    if (retryWalmart) walmartMatch = retryWalmart;
   }
 
   if (finalTargetMatch) comparisons.push(finalTargetMatch);
@@ -847,13 +906,65 @@ export async function compareRetailers(
     listPrice,
     allTimeHigh,
     historicalAvg,
-    merchantData.highestRegularPrice
+    merchantHighestRegularPrice
   );
+
+  return finalizeRetailerComparisons(
+    comparisons,
+    productTitle,
+    amazonPrice,
+    amazonUrl,
+    listPrice,
+    baselineMSRP
+  );
+}
+
+/**
+ * Re-computes Amazon entry, MSRP fallback for unmatched stores, lowest-price badges,
+ * and savings calculations cleanly using exact final Amazon + CCC historical numbers.
+ */
+export function finalizeRetailerComparisons(
+  rawComparisons: RetailerPriceComparison[],
+  productTitle: string,
+  amazonPrice: number,
+  amazonUrl: string,
+  listPrice?: number | null,
+  baselineMSRPInput?: number | null,
+  allTimeHigh?: number | null,
+  historicalAvg?: number | null
+): RetailerPriceComparison[] {
+  const baselineMSRP = baselineMSRPInput && baselineMSRPInput > amazonPrice
+    ? Number(baselineMSRPInput.toFixed(2))
+    : determineBaselineMSRP(amazonPrice, listPrice, allTimeHigh, historicalAvg);
 
   const cleanSearch = cleanQueryForRetailers(productTitle);
 
-  if (!comparisons.some(c => c.retailer === 'Target')) {
-    comparisons.push({
+  const byRetailer = new Map<string, InternalComparison>();
+  byRetailer.set('Amazon', {
+    retailer: 'Amazon',
+    price: Number(amazonPrice.toFixed(2)),
+    regularPrice: listPrice ? Number(listPrice.toFixed(2)) : null,
+    url: amazonUrl,
+    inStock: true,
+    isLowestPrice: false,
+    label: undefined,
+    verifiedLive: true
+  });
+
+  for (const c of rawComparisons) {
+    if (c.retailer === 'Amazon') continue;
+    const isFallbackSearch = c.url.includes('/s?searchTerm=') || c.url.includes('/searchpage.jsp') || c.url.includes('walmart.com/search');
+    if (isFallbackSearch) continue;
+    if (typeof c.price === 'number' && amazonPrice > 50 && c.price < amazonPrice * 0.4) continue;
+    byRetailer.set(c.retailer, {
+      ...c,
+      isLowestPrice: false,
+      verifiedLive: true
+    });
+  }
+
+  if (!byRetailer.has('Target')) {
+    byRetailer.set('Target', {
       retailer: 'Target',
       price: baselineMSRP,
       regularPrice: baselineMSRP,
@@ -865,8 +976,8 @@ export async function compareRetailers(
     });
   }
 
-  if (!comparisons.some(c => c.retailer === 'Best Buy')) {
-    comparisons.push({
+  if (!byRetailer.has('Best Buy')) {
+    byRetailer.set('Best Buy', {
       retailer: 'Best Buy',
       price: baselineMSRP,
       regularPrice: baselineMSRP,
@@ -878,8 +989,8 @@ export async function compareRetailers(
     });
   }
 
-  if (!comparisons.some(c => c.retailer === 'Walmart')) {
-    comparisons.push({
+  if (!byRetailer.has('Walmart')) {
+    byRetailer.set('Walmart', {
       retailer: 'Walmart',
       price: baselineMSRP,
       regularPrice: baselineMSRP,
@@ -891,7 +1002,7 @@ export async function compareRetailers(
     });
   }
 
-  // 4. Calculate lowest price & savings vs Amazon
+  const comparisons = Array.from(byRetailer.values());
   const verifiedStores = comparisons.filter(c => c.verifiedLive && typeof c.price === 'number' && c.price > 0);
   const poolForMin = verifiedStores.length > 0
     ? verifiedStores
@@ -914,7 +1025,6 @@ export async function compareRetailers(
     });
   }
 
-  // Desired display order: Amazon, Target, Best Buy, Walmart
   const order = ['Amazon', 'Target', 'Best Buy', 'Walmart'];
   return comparisons
     .sort((a, b) => order.indexOf(a.retailer) - order.indexOf(b.retailer))

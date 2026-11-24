@@ -11,7 +11,7 @@ import { AlertCircle, ShoppingCart, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('worthit_theme') || localStorage.getItem('deal_digger_theme');
+    const saved = localStorage.getItem('pricesentry_theme') || localStorage.getItem('worthit_theme') || localStorage.getItem('deal_digger_theme');
     if (saved !== null) {
       return saved === 'dark';
     }
@@ -26,7 +26,7 @@ export const App: React.FC = () => {
 
   // Sync dark class on root document and persist in localStorage
   useEffect(() => {
-    localStorage.setItem('worthit_theme', darkMode ? 'dark' : 'light');
+    localStorage.setItem('pricesentry_theme', darkMode ? 'dark' : 'light');
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -41,8 +41,10 @@ export const App: React.FC = () => {
     }
   }, [strictnessThreshold]);
 
-  // 1. Scan Single Product (with real-time progress simulation / fetch)
-  const handleScanSingle = async (query: string) => {
+  /**
+   * Streams real-time SSE vetting progress for single-item and wishlist scans.
+   */
+  const streamVetItems = async (items: string[], options: { prepend: boolean }) => {
     setIsLoading(true);
     setErrorMessage(null);
     setProgress({
@@ -50,65 +52,9 @@ export const App: React.FC = () => {
       totalSteps: 4,
       stage: 'resolving',
       message: `[1/4] Identifying product...`,
-      totalItems: 1,
+      totalItems: items.length,
       itemIndex: 0
     });
-
-    try {
-      // Step 2 simulation before await
-      const timer1 = setTimeout(() => {
-        setProgress(p => p ? { ...p, step: 2, stage: 'amazon_fetch', message: `[2/4] Fetching live price...` } : null);
-      }, 700);
-
-      const timer2 = setTimeout(() => {
-        setProgress(p => p ? { ...p, step: 3, stage: 'ccc_fetch', message: `[3/4] Analyzing price history...` } : null);
-      }, 1600);
-
-      const res = await fetch('/api/vet-single', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: query, threshold: strictnessThreshold })
-      });
-
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to vet product');
-      }
-
-      setProgress({
-        step: 4,
-        totalSteps: 4,
-        stage: 'done',
-        message: `[4/4] Deal verdict calculated`,
-        product: data.product
-      });
-
-      // Insert or replace product in list
-      setProducts(prev => {
-        const filtered = prev.filter(p => p.asin !== data.product.asin);
-        return [data.product, ...filtered];
-      });
-
-      setTimeout(() => {
-        setProgress(null);
-        setIsLoading(false);
-      }, 800);
-    } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || 'Error vetting product');
-      setProgress(null);
-      setIsLoading(false);
-    }
-  };
-
-  // 2. Scan Wishlist with SSE Stream
-  const handleScanWishlist = async (items: string[]) => {
-    if (items.length === 0) return;
-    setIsLoading(true);
-    setErrorMessage(null);
 
     try {
       const response = await fetch('/api/vet-stream', {
@@ -126,6 +72,8 @@ export const App: React.FC = () => {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamError: string | null = null;
+      let receivedProductCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -141,14 +89,19 @@ export const App: React.FC = () => {
           if (dataMatch && dataMatch[1]) {
             try {
               const event: ScrapeProgressEvent = JSON.parse(dataMatch[1]);
+              if (event.stage === 'error') {
+                streamError = event.message || 'Failed to vet product';
+                continue;
+              }
               setProgress(event);
 
               // If event attached a completed product, add it to state immediately!
               if (event.product) {
+                receivedProductCount++;
                 const prod = event.product;
                 setProducts(prev => {
                   const filtered = prev.filter(p => p.asin !== prod.asin);
-                  return [...filtered, prod];
+                  return options.prepend ? [prod, ...filtered] : [...filtered, prod];
                 });
               }
             } catch {
@@ -158,16 +111,31 @@ export const App: React.FC = () => {
         }
       }
 
+      if (streamError && receivedProductCount === 0) {
+        throw new Error(streamError);
+      }
+
       setTimeout(() => {
         setProgress(null);
         setIsLoading(false);
-      }, 600);
+      }, 400);
     } catch (err: any) {
       console.error(err);
-      setErrorMessage(err.message || 'Error processing wishlist stream');
+      setErrorMessage(err.message || 'Error vetting product');
       setProgress(null);
       setIsLoading(false);
     }
+  };
+
+  // 1. Scan Single Product (with real-time SSE progress)
+  const handleScanSingle = async (query: string) => {
+    await streamVetItems([query], { prepend: true });
+  };
+
+  // 2. Scan Wishlist with SSE Stream
+  const handleScanWishlist = async (items: string[]) => {
+    if (items.length === 0) return;
+    await streamVetItems(items, { prepend: false });
   };
 
   // 3. Import Public Wishlist URL
@@ -322,7 +290,7 @@ export const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-white dark:bg-transparent mt-auto transition-colors">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span className="font-semibold text-slate-700 dark:text-slate-300">WorthIt</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300">PriceSentry</span>
           <span className="text-[11px] text-slate-500 dark:text-slate-400">
             Made By: Saurish Perumalla, 2026
           </span>

@@ -5,7 +5,7 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export const WorthItLogo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
+export const PriceSentryLogo: React.FC<LogoProps> = ({ className = '', size = 'md' }) => {
   const sizeMap = {
     sm: 'h-8 w-8 rounded-lg',
     md: 'h-10 w-10 rounded-xl',
@@ -36,22 +36,28 @@ export const WorthItLogo: React.FC<LogoProps> = ({ className = '', size = 'md' }
           className={`${iconSizes[size]} transition-transform duration-200 group-hover:scale-105`}
         >
           <defs>
-            <linearGradient id="worthit-w-grad" x1="4" y1="24" x2="28" y2="7" gradientUnits="userSpaceOnUse">
+            <linearGradient id="pricesentry-grad" x1="4" y1="26" x2="28" y2="6" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#10B981" />
               <stop offset="50%" stopColor="#14B8A6" />
               <stop offset="100%" stopColor="#06B6D4" />
             </linearGradient>
           </defs>
-          {/* Dynamic 'W' whose right wing swoops into a verified Checkmark */}
+          {/* Sentry Shield */}
           <path
-            d="M5 11L9.5 22.5L14 13.5L18 22.5L27 6.5"
-            stroke="url(#worthit-w-grad)"
-            strokeWidth="3.2"
+            d="M16 4.5L7 8.5V15.5C7 21.8 10.8 27.5 16 29C21.2 27.5 25 21.8 25 15.5V8.5L16 4.5Z"
+            stroke="url(#pricesentry-grad)"
+            strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          {/* Accent verification dot at check apex */}
-          <circle cx="27" cy="6.5" r="1.8" fill="#06B6D4" />
+          {/* Centered Deal Verification Check */}
+          <path
+            d="M11.5 16.5L14.5 19.5L20.5 13"
+            stroke="url(#pricesentry-grad)"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
     </div>

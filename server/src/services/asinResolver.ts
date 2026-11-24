@@ -128,12 +128,13 @@ export async function resolveInputToAsin(input: string): Promise<ResolveResult> 
 }
 
 /**
- * Extracts normalized brand/product generation number if present (e.g. "Switch 2" -> 2, "iPhone 18" -> 18).
+ * Extracts normalized brand/product generation number if present (e.g. "Switch 2" -> 2, "2nd Generation" -> 2).
  */
-function extractGeneration(text: string): { num: number; raw: string } | null {
+export function extractGeneration(text: string): { num: number; raw: string } | null {
   const clean = text.replace(/&#160;|&nbsp;/gi, ' ').replace(/[™®©\u00a0]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   const m =
     clean.match(/(?:iphone|watch(?:\s*se)?|galaxy|switch|playstation|ps|series|ultra|ipad|pixel|hero|airpods(?:\s*pro)?|macbook(?:\s*pro|\s*air)?)\s*([0-9]{1,2})\b/i) ||
+    clean.match(/\b([0-9]{1,2})(?:st|nd|rd|th)?\s*gen(?:eration)?\b/i) ||
     clean.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)\b/i);
   if (!m) return null;
   return { num: parseInt(m[1], 10), raw: m[0].trim() };

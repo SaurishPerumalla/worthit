@@ -1,11 +1,31 @@
 import { resolveInputToAsin } from './asinResolver.js';
 import { scrapeAmazonProduct } from './amazonScraper.js';
-import { fetchCccPriceHistory, buildCccChartUrl } from './cccScraper.js';
+import { fetchCccPriceHistory, buildCccChartUrl, createBaselineHistoricalData } from './cccScraper.js';
 import { evaluateDeal } from './vettingEngine.js';
-import { compareRetailers } from './retailerComparisonService.js';
-import { VettedProduct, ScrapeProgressEvent } from '../types.js';
+import { compareRetailers, finalizeRetailerComparisons } from './retailerComparisonService.js';
+import { VettedProduct, ScrapeProgressEvent, RetailerPriceComparison } from '../types.js';
 
 export type ProgressCallback = (event: ScrapeProgressEvent) => void;
+
+/**
+ * Preserves or infers brand prefix when Amazon search result card truncates the brand name.
+ */
+function buildEarlyRetailerQuery(input: string, resolvedTitle?: string): string | null {
+  if (!resolvedTitle) return null;
+  const trimmedInput = input.trim();
+  const lowerTitle = resolvedTitle.toLowerCase();
+  const brandMatch = trimmedInput.match(/^(Apple|Nintendo|Sony|Samsung|Bose|LG|Microsoft|Google|Logitech|Dyson)\b/i);
+  const inferredBrand = brandMatch?.[1] || (
+    /\b(airpods|iphone|ipad|macbook|apple\s*watch|watch\s*(?:se|series|ultra))\b/i.test(lowerTitle) ? 'Apple'
+      : /\bswitch\b/i.test(lowerTitle) ? 'Nintendo'
+      : /\b(wh-?1000|wf-?1000|playstation)\b/i.test(lowerTitle) ? 'Sony'
+      : null
+  );
+  if (inferredBrand && !new RegExp(`\\b${inferredBrand}\\b`, 'i').test(resolvedTitle)) {
+    return `${inferredBrand} ${resolvedTitle}`;
+  }
+  return resolvedTitle;
+}
 
 /**
  * Executes a controlled delay with random jitter (base 600ms + 0-200ms random).
@@ -16,7 +36,8 @@ export function jitterDelay(baseMs: number = 600): Promise<void> {
 }
 
 /**
- * Vets a single item through the full 4-phase zero-mismatch pipeline.
+ * Vets a single item through the 4-phase zero-mismatch pipeline, executing independent
+ * Amazon PDP, price history OCR, and cross-retailer lookups concurrently.
  */
 export async function vetSingleProduct(
   input: string,
@@ -47,12 +68,20 @@ export async function vetSingleProduct(
     notify(1, 'resolving', `[1/4] Identifying product...`);
     const resolved = await resolveInputToAsin(input);
     const asin = resolved.asin;
+    const amazonUrl = `https://www.amazon.com/dp/${asin}`;
+    const earlyTitle = buildEarlyRetailerQuery(input, resolved.resolvedTitle);
 
     // ----------------------------------------------------
-    // Phase 2: Live Amazon Product & Current Price Fetch
+    // Phases 2, 3 & Retailer Pre-fetch run in parallel as soon as ASIN is known
     // ----------------------------------------------------
-    notify(2, 'amazon_fetch', `[2/4] Fetching live price...`, asin);
-    const amazonData = await scrapeAmazonProduct(asin);
+    notify(2, 'amazon_fetch', `[2/4] Fetching live price & history...`, asin);
+    const amazonPromise = scrapeAmazonProduct(asin);
+    const cccPromise = fetchCccPriceHistory(asin, resolved.resolvedPrice, null);
+    const earlyComparePromise: Promise<RetailerPriceComparison[] | null> = earlyTitle
+      ? compareRetailers(earlyTitle, resolved.resolvedPrice || 0, amazonUrl).catch(() => null)
+      : Promise.resolve(null);
+
+    const amazonData = await amazonPromise;
 
     // Prefer resolved search title/image if scraper missed them
     if (!amazonData.title && resolved.resolvedTitle) {
@@ -69,15 +98,18 @@ export async function vetSingleProduct(
     amazonData.alternateMatches = resolved.alternateMatches;
 
     // ----------------------------------------------------
-    // Phase 3: Live Historical Price Fetch
+    // Phase 3: Price History Analysis (already pre-fetched concurrently)
     // ----------------------------------------------------
     notify(3, 'ccc_fetch', `[3/4] Analyzing price history...`, asin);
-    const historical = await fetchCccPriceHistory(asin, amazonData.price, amazonData.listPrice);
+    let historical = await cccPromise;
+    if (historical.historySource === 'amazon_baseline' && (amazonData.price || amazonData.listPrice)) {
+      historical = createBaselineHistoricalData(asin, historical.chartUrl, amazonData.price, amazonData.listPrice);
+    }
 
     // ----------------------------------------------------
-    // Phase 4: Data Integrity Guard & Mathematical Deal Vetting
+    // Phase 4: Data Integrity Guard, Deal Verdict & Multi-Store Alignment
     // ----------------------------------------------------
-    notify(4, 'vetting', `[4/4] Calculating deal verdict...`, asin);
+    notify(4, 'vetting', `[4/4] Comparing stores & verdict...`, asin);
 
     let currentPrice = amazonData.price;
     let isLatestTrackedPriceViaCcc = false;
@@ -136,17 +168,31 @@ export async function vetSingleProduct(
 
     const verdict = evaluateDeal(currentPrice, amazonData.listPrice, historical, thresholdPercent);
 
-    // Cross-Retailer Price Comparison (Target, Best Buy, Walmart)
-    let retailerComparisons: any[] | undefined;
+    // Cross-Retailer Price Comparison (use pre-fetched result when available, else run now)
+    let retailerComparisons: RetailerPriceComparison[] | undefined;
     try {
-      retailerComparisons = await compareRetailers(
-        amazonData.title || input,
-        currentPrice,
-        `https://www.amazon.com/dp/${asin}`,
-        amazonData.listPrice,
-        historical?.allTimeHigh?.price,
-        historical?.historicalAverage
-      );
+      const earlyMatches = await earlyComparePromise;
+      if (earlyMatches) {
+        retailerComparisons = finalizeRetailerComparisons(
+          earlyMatches,
+          amazonData.title || input,
+          currentPrice,
+          amazonUrl,
+          amazonData.listPrice,
+          undefined,
+          historical?.allTimeHigh?.price,
+          historical?.historicalAverage
+        );
+      } else {
+        retailerComparisons = await compareRetailers(
+          amazonData.title || input,
+          currentPrice,
+          amazonUrl,
+          amazonData.listPrice,
+          historical?.allTimeHigh?.price,
+          historical?.historicalAverage
+        );
+      }
     } catch (retailerErr) {
       console.warn('Cross-retailer comparison skipped:', retailerErr);
     }
@@ -160,7 +206,7 @@ export async function vetSingleProduct(
       listPrice: amazonData.listPrice,
       inStock: amazonData.inStock,
       isLatestTrackedPriceViaCcc,
-      amazonUrl: `https://www.amazon.com/dp/${asin}`,
+      amazonUrl,
       cccUrl: `https://camelcamelcamel.com/product/${asin}`,
       chartUrl: buildCccChartUrl(asin, 'all'),
       historical,
