@@ -131,9 +131,8 @@ export async function resolveInputToAsin(input: string): Promise<ResolveResult> 
  * Scores how well a product title matches the user's intent:
  * - Eliminates cases/covers/protectors/straps when the user is searching for a device.
  * - Eliminates brand mismatches (e.g. Samsung/Google when searching for Apple iPhone).
- * - Rewards hardware tier alignment (e.g. Pro, Pro Max, Ultra).
- * - Rewards color affinity (e.g. Blue, Sky Blue, Titanium Blue when Blue is requested).
- * - Rewards exact/closest storage capacity and generation proximity.
+ * - Prioritizes Core Hardware Entity: Exact Model Generation (e.g. iPhone 18 == 18) and Tier (Pro vs Pro Max).
+ * - Treats color & cosmetic attributes as tiebreakers so a color variation never demotes an exact model match.
  */
 export function scoreProductRelevance(title: string, query: string): number {
   const t = title.toLowerCase();
@@ -148,75 +147,83 @@ export function scoreProductRelevance(title: string, query: string): number {
     return -100; // eliminate accessories when user wants a device
   }
 
-  // 2. Heavy penalty if user asked for iPhone/Apple and result is Samsung/Google, or vice-versa
+  // 2. Heavy penalty if brand mismatch
   if (q.includes('iphone') && !t.includes('iphone')) return -50;
   if (q.includes('galaxy') && !t.includes('galaxy')) return -50;
   if (q.includes('pixel') && !t.includes('pixel')) return -50;
 
-  let score = 0;
+  let score = 100; // baseline for valid hardware
 
-  // 3. Tier alignment
-  const wantsPro = /\bpro\b/i.test(q);
-  const hasPro = /\bpro\b/i.test(t);
-  if (wantsPro && hasPro) score += 12;
-  else if (wantsPro && !hasPro) score -= 15;
-
-  const wantsMax = /\bmax\b/i.test(q);
-  const hasMax = /\bmax\b/i.test(t);
-  if (wantsMax && hasMax) score += 10;
-  else if (!wantsMax && hasMax) score -= 5;
-
-  const wantsUltra = /\bultra\b/i.test(q);
-  const hasUltra = /\bultra\b/i.test(t);
-  if (wantsUltra && hasUltra) score += 15;
-  else if (wantsUltra && !hasUltra) score -= 15;
-
-  // 4. Color matching
-  const blueShades = ['sky blue', 'deep blue', 'sierra blue', 'pacific blue', 'blue titanium', 'navy blue', 'light blue', 'blue'];
-  const wantsBlue = blueShades.some(b => q.includes(b));
-  if (wantsBlue) {
-    if (q.includes('sky blue') && t.includes('sky blue')) {
-      score += 15;
-    } else if (blueShades.some(b => t.includes(b))) {
-      score += 10;
-    } else if (/\b(black|white|gold|silver|glacier|burgundy|desert|natural titanium)\b/i.test(t)) {
-      score -= 5;
-    }
-  }
-
-  // 5. Storage capacity matching (e.g. 256GB, 512GB, 128GB, 1TB)
-  const storageMatch = q.match(/\b([0-9]{2,4}\s*(?:gb|tb))\b/i);
-  if (storageMatch) {
-    const rawStorage = storageMatch[1].toLowerCase().replace(/\s+/g, '');
-    if (t.includes(rawStorage)) {
-      score += 12;
-    }
-  }
-
-  // 6. Keywords match
-  const keywords = q.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
-  for (const kw of keywords) {
-    if (t.includes(kw)) {
-      score += 8;
-    }
-  }
-
-  // 7. Generation proximity for phones & watches
-  const qNumMatch = q.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i);
-  const tNumMatch = t.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i);
+  // 3. Exact Generation matching (Highest Priority entity match)
+  const qNumMatch = q.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || q.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
+  const tNumMatch = t.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || t.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
   if (qNumMatch && tNumMatch) {
     const qNum = parseInt(qNumMatch[1], 10);
     const tNum = parseInt(tNumMatch[1], 10);
     if (qNum === tNum) {
-      score += 15;
-    } else if (Math.abs(qNum - tNum) <= 2) {
-      score += 8; // Closest existing generation
+      score += 60; // Huge boost for exact requested generation (e.g. 18 == 18)
+    } else {
+      const diff = Math.abs(qNum - tNum);
+      score -= diff * 20; // Prior generations penalised relative to exact requested generation
     }
   }
 
-  // Extra rewards for high-intent specs
+  // 4. Hardware Tier Alignment (Pro, Pro Max, Plus, Ultra, SE)
+  const wantsProMax = /\bpro\s*max\b/i.test(q);
+  const hasProMax = /\bpro\s*max\b/i.test(t);
+  const wantsPro = /\bpro\b/i.test(q) && !wantsProMax;
+  const hasPro = /\bpro\b/i.test(t) && !hasProMax;
+
+  if (wantsProMax) {
+    if (hasProMax) score += 30;
+    else score -= 25;
+  } else if (wantsPro) {
+    if (hasPro) score += 30;
+    else if (hasProMax) score += 10; // Pro Max is acceptable alternate if no Pro, but ranks lower
+    else score -= 30;
+  }
+
+  const wantsUltra = /\bultra\b/i.test(q);
+  const hasUltra = /\bultra\b/i.test(t);
+  if (wantsUltra && hasUltra) score += 30;
+  else if (wantsUltra && !hasUltra) score -= 30;
+
+  // 5. Storage Capacity Match (256gb, 512gb, 128gb, 1tb)
+  const storageMatch = q.match(/\b([0-9]{2,4}\s*(?:gb|tb))\b/i);
+  if (storageMatch) {
+    const rawStorage = storageMatch[1].toLowerCase().replace(/\s+/g, '');
+    if (t.includes(rawStorage)) {
+      score += 20;
+    } else {
+      score -= 5;
+    }
+  }
+
+  // 6. Color Matching (Tiebreaker / Secondary Attribute)
+  const colors = [
+    'sky blue', 'deep blue', 'sierra blue', 'pacific blue', 'blue titanium', 'navy blue', 'blue',
+    'glacier', 'black', 'white', 'natural titanium', 'desert titanium', 'silver', 'gold', 'starlight', 'midnight'
+  ];
+  const matchedQueryColors = colors.filter(c => q.includes(c));
+  if (matchedQueryColors.length > 0) {
+    const exactColorMatch = matchedQueryColors.some(c => t.includes(c));
+    if (exactColorMatch) {
+      score += 15;
+    } else if (matchedQueryColors.some(c => c.includes('blue')) && t.includes('blue')) {
+      score += 10;
+    }
+  }
+
+  // 7. General Keyword Coverage
+  const keywords = q.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+  for (const kw of keywords) {
+    if (t.includes(kw)) {
+      score += 5;
+    }
+  }
+
   if (t.includes('unlocked')) score += 5;
-  if (!t.includes('renewed')) score += 3;
+  if (!t.includes('renewed')) score += 5;
 
   return score;
 }
@@ -387,8 +394,21 @@ export async function searchAmazonForCandidates(query: string): Promise<ResolveR
   const alternates = bestCandidates.slice(1, 5);
 
   let matchNote: string | undefined;
-  if (isClosestMatch || !primary.title.toLowerCase().includes(query.toLowerCase().trim())) {
-    matchNote = 'Closest match based on your search intent';
+  const qNumMatch = query.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || query.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
+  const pNumMatch = primary.title.match(/(?:iphone|watch|galaxy)\s*([0-9]{1,2})/i) || primary.title.match(/\b([0-9]{1,2})\s*(?:pro|plus|ultra|max)?\b/i);
+
+  if (qNumMatch && pNumMatch && parseInt(qNumMatch[1], 10) !== parseInt(pNumMatch[1], 10)) {
+    matchNote = `Closest available generation (${pNumMatch[0]})`;
+  } else if (isClosestMatch) {
+    matchNote = 'Closest match based on search intent';
+  } else {
+    // If the exact model/generation matched (e.g. iPhone 18 Pro), but color varied
+    const knownColors = ['glacier', 'black', 'white', 'deep blue', 'sky blue', 'blue titanium', 'natural titanium', 'desert titanium', 'silver', 'gold', 'starlight', 'midnight'];
+    const pColor = knownColors.find(c => primary.title.toLowerCase().includes(c));
+    const qColor = knownColors.find(c => query.toLowerCase().includes(c));
+    if (pColor && qColor && pColor !== qColor) {
+      matchNote = `Available variation (${pColor.charAt(0).toUpperCase() + pColor.slice(1)})`;
+    }
   }
 
   return {
