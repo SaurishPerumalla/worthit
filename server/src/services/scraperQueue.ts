@@ -43,14 +43,14 @@ export async function vetSingleProduct(
     // ----------------------------------------------------
     // Phase 1: Canonical ASIN Resolution
     // ----------------------------------------------------
-    notify(1, 'resolving', `[1/4] Verifying ASIN on Amazon: "${input.slice(0, 40)}"...`);
+    notify(1, 'resolving', `[1/4] Identifying product...`);
     const resolved = await resolveInputToAsin(input);
     const asin = resolved.asin;
 
     // ----------------------------------------------------
     // Phase 2: Live Amazon Product & Current Price Fetch
     // ----------------------------------------------------
-    notify(2, 'amazon_fetch', `[2/4] Extracting Live Amazon Price for ASIN ${asin}...`, asin);
+    notify(2, 'amazon_fetch', `[2/4] Fetching live price...`, asin);
     const amazonData = await scrapeAmazonProduct(asin);
 
     // Prefer resolved search title/image if scraper missed them
@@ -68,15 +68,15 @@ export async function vetSingleProduct(
     amazonData.alternateMatches = resolved.alternateMatches;
 
     // ----------------------------------------------------
-    // Phase 3: Live CamelCamelCamel Historical Price Fetch
+    // Phase 3: Live Historical Price Fetch
     // ----------------------------------------------------
-    notify(3, 'ccc_fetch', `[3/4] Fetching CamelCamelCamel Price History for ASIN ${asin}...`, asin);
+    notify(3, 'ccc_fetch', `[3/4] Analyzing price history...`, asin);
     const historical = await fetchCccPriceHistory(asin, amazonData.price, amazonData.listPrice);
 
     // ----------------------------------------------------
     // Phase 4: Data Integrity Guard & Mathematical Deal Vetting
     // ----------------------------------------------------
-    notify(4, 'vetting', `[4/4] Calculating Deal Approval Verdict for ASIN ${asin}...`, asin);
+    notify(4, 'vetting', `[4/4] Calculating deal verdict...`, asin);
 
     let currentPrice = amazonData.price;
     let isLatestTrackedPriceViaCcc = false;
@@ -155,7 +155,7 @@ export async function vetSingleProduct(
       status: 'success'
     };
 
-    notify(4, 'done', `Completed vetting for ${vettedProduct.title.slice(0, 30)}...`, asin, vettedProduct);
+    notify(4, 'done', `[4/4] Deal verdict calculated`, asin, vettedProduct);
     return vettedProduct;
   } catch (error: any) {
     console.error(`Error vetting product for input "${input}":`, error);

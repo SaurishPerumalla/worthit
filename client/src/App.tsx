@@ -49,7 +49,7 @@ export const App: React.FC = () => {
       step: 1,
       totalSteps: 4,
       stage: 'resolving',
-      message: `[1/4] Verifying ASIN on Amazon: "${query}"...`,
+      message: `[1/4] Identifying product...`,
       totalItems: 1,
       itemIndex: 0
     });
@@ -57,11 +57,11 @@ export const App: React.FC = () => {
     try {
       // Step 2 simulation before await
       const timer1 = setTimeout(() => {
-        setProgress(p => p ? { ...p, step: 2, stage: 'amazon_fetch', message: `[2/4] Extracting Live Amazon Price...` } : null);
+        setProgress(p => p ? { ...p, step: 2, stage: 'amazon_fetch', message: `[2/4] Fetching live price...` } : null);
       }, 700);
 
       const timer2 = setTimeout(() => {
-        setProgress(p => p ? { ...p, step: 3, stage: 'ccc_fetch', message: `[3/4] Fetching CamelCamelCamel Price History...` } : null);
+        setProgress(p => p ? { ...p, step: 3, stage: 'ccc_fetch', message: `[3/4] Analyzing price history...` } : null);
       }, 1600);
 
       const res = await fetch('/api/vet-single', {
@@ -82,7 +82,7 @@ export const App: React.FC = () => {
         step: 4,
         totalSteps: 4,
         stage: 'done',
-        message: `[4/4] Completed! Deal vetting verdict calculated.`,
+        message: `[4/4] Deal verdict calculated`,
         product: data.product
       });
 
