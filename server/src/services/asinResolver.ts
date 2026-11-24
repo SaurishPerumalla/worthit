@@ -214,7 +214,37 @@ export function scoreProductRelevance(title: string, query: string): number {
     }
   }
 
-  // 7. General Keyword Coverage
+  // 7. AppleCare+ / Extended Warranty / Insurance Bundles
+  // Always prioritize standalone hardware over AppleCare+ bundles unless user explicitly requested it
+  const wantsCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance)\b/i.test(q);
+  const hasCare = /\b(applecare\+?|apple\s*care|warranty|protection\s*plan|care\+|insurance)\b/i.test(t);
+  if (!wantsCare && hasCare) {
+    score -= 45; // Substantial penalty so non-AppleCare devices always rank first
+  } else if (wantsCare && hasCare) {
+    score += 25;
+  }
+
+  // 8. Cellular / GPS connectivity alignment (Apple Watches, iPads, Tablets)
+  const wantsCellular = /\b(cellular|lte|4g|5g)\b/i.test(q);
+  const hasCellular = /\b(cellular|lte|4g|5g)\b/i.test(t);
+  if (wantsCellular && hasCellular) {
+    score += 25;
+  } else if (wantsCellular && !hasCellular) {
+    score -= 25; // Penalize GPS-only when user specifically requested cellular
+  }
+
+  // 9. Case / Display size alignment (e.g. 40mm, 44mm, 41mm, 45mm, 49mm)
+  const sizeMatch = q.match(/\b([0-9]{2}\s*mm)\b/i);
+  if (sizeMatch) {
+    const rawSize = sizeMatch[1].toLowerCase().replace(/\s+/g, '');
+    if (t.includes(rawSize)) {
+      score += 20;
+    } else {
+      score -= 15;
+    }
+  }
+
+  // 10. General Keyword Coverage
   const keywords = q.replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
   for (const kw of keywords) {
     if (t.includes(kw)) {
