@@ -1,5 +1,7 @@
+import * as cheerio from 'cheerio';
 import { CandidateMatch } from '../types.js';
 import { parsePriceNumber } from './amazonScraper.js';
+import { fetchAmazonHtml } from './fetchHelper.js';
 
 export const ASIN_REGEX = /(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/|\/product\/|\/clp\/|\/d\/|\/o\/ASIN\/|\/ASIN\/|\/offer-listing\/)(?:[^\/]+\/)?([A-Z0-9]{10})(?:[/?&#]|$)/i;
 export const EXACT_ASIN_REGEX = /^[A-Z0-9]{10}$/i;
@@ -126,76 +128,67 @@ export async function resolveInputToAsin(input: string): Promise<ResolveResult> 
 
 /**
  * Executes a live Amazon product search, extracts top candidates,
- * auto-locks #1 match, and attaches alternate variations.
+ * auto-locks #1 organic match, and attaches alternate variations.
  */
 export async function searchAmazonForCandidates(query: string): Promise<ResolveResult> {
   const url = `https://www.amazon.com/s?k=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9'
-    }
-  });
+  const text = await fetchAmazonHtml(url);
+  const $ = cheerio.load(text);
 
-  if (!res.ok) {
-    throw new Error(`Amazon search returned status ${res.status}`);
-  }
+  const candidates: (CandidateMatch & { isSponsored?: boolean })[] = [];
 
-  const text = await res.text();
-  const itemMatches = [...text.matchAll(/<div[^>]+data-asin="([A-Z0-9]{10})"[^>]*data-component-type="s-search-result"[\s\S]*?(?=<div[^>]+data-component-type="s-search-result"|$)/g)];
+  $('[data-component-type="s-search-result"], .s-result-item[data-asin]').each((_, el) => {
+    const $el = $(el);
+    const asin = $el.attr('data-asin')?.toUpperCase();
+    if (!asin || asin.length !== 10 || candidates.some(c => c.asin === asin)) return;
 
-  const candidates: CandidateMatch[] = [];
-
-  for (const match of itemMatches) {
-    const asin = match[1].toUpperCase();
-    const html = match[0];
-    if (candidates.some(c => c.asin === asin)) continue;
+    // Check if this is a sponsored ad
+    const isSponsored =
+      $el.find('.s-sponsored-label-info-icon, .puis-sponsored-label-text, [data-ad-type]').length > 0 ||
+      $el.hasClass('AdHolder');
 
     // Title extraction
-    let title = '';
-    const imgAltMatch = html.match(/<img[^>]+class="s-image"[^>]+alt="([^"]+)"/i) || html.match(/<img[^>]+alt="([^"]+)"[^>]+class="s-image"/i);
-    if (imgAltMatch && imgAltMatch[1].length > 5) {
-      title = imgAltMatch[1].trim();
+    let title = $el.find('h2 a span, h2 span, h2 a').first().text().trim();
+    if (!title || title.length < 5) {
+      title = $el.find('h2').text().replace(/\s+/g, ' ').trim();
     }
     if (!title) {
-      const h2Match = html.match(/<h2[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i);
-      if (h2Match) {
-        title = h2Match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      }
+      title = $el.find('img.s-image').attr('alt')?.trim() || '';
     }
+    if (!title || title.length < 5) return;
 
     // Price extraction
     let price: number | null = null;
-    const priceMatch = html.match(/<span class="a-price"[^>]*>[\s\S]*?<span class="a-offscreen">([^<]+)<\/span>/i) || html.match(/<span class="a-offscreen">([^<]+)<\/span>/i);
-    if (priceMatch) {
-      price = parsePriceNumber(priceMatch[1]);
+    const priceText = $el.find('.a-price:not(.a-text-price) .a-offscreen').first().text().trim();
+    if (priceText) {
+      price = parsePriceNumber(priceText);
     }
     if (!price) {
-      const wholeMatch = html.match(/<span class="a-price-whole">([^<]+)<\/span>/i);
-      if (wholeMatch) {
-        const whole = wholeMatch[1].replace(/[^0-9]/g, '');
-        const fracMatch = html.match(/<span class="a-price-fraction">([^<]+)<\/span>/i);
-        const frac = fracMatch ? fracMatch[1].replace(/[^0-9]/g, '') : '00';
-        const parsed = parseFloat(`${whole}.${frac}`);
-        if (!isNaN(parsed) && parsed > 0) price = Number(parsed.toFixed(2));
+      const whole = $el.find('.a-price-whole').first().text().replace(/[^0-9]/g, '');
+      if (whole) {
+        const frac = $el.find('.a-price-fraction').first().text().replace(/[^0-9]/g, '') || '00';
+        price = parsePriceNumber(`${whole}.${frac}`);
       }
     }
 
     // Image extraction
-    let image: string | null = null;
-    const imgMatch = html.match(/<img class="s-image"[^>]*src="([^"]+)"/i) || html.match(/src="([^"]+)"[^>]*class="s-image"/i);
-    if (imgMatch) image = imgMatch[1];
+    const image = $el.find('img.s-image').first().attr('src') || null;
 
-    if (title && asin) {
-      candidates.push({ asin, title, price, image });
-    }
-    if (candidates.length >= 4) break;
-  }
+    candidates.push({
+      asin,
+      title,
+      price,
+      image,
+      isSponsored
+    });
+  });
+
+  // Prioritize organic results over sponsored accessory ads
+  candidates.sort((a, b) => (a.isSponsored === b.isSponsored ? 0 : a.isSponsored ? 1 : -1));
 
   if (candidates.length === 0) {
-    // If no search results matched container, check any data-asin
-    const fallbackAsins = [...new Set([...text.matchAll(/data-asin="([A-Z0-9]{10})"/g)].map(m => m[1].toUpperCase()))];
+    // Check fallback data-asin attributes
+    const fallbackAsins = [...new Set([...text.matchAll(/data-asin="(B0[A-Z0-9]{8})"/g)].map(m => m[1].toUpperCase()))];
     if (fallbackAsins.length > 0) {
       const bestAsin = fallbackAsins[0];
       return {
@@ -204,11 +197,16 @@ export async function searchAmazonForCandidates(query: string): Promise<ResolveR
         inputType: 'search'
       };
     }
-    throw new Error(`No matching Amazon products found for search query "${query}"`);
+    throw new Error(`No matching Amazon products found for search query "${query}". Please paste the direct Amazon link or ASIN.`);
   }
 
   const primary = candidates[0];
-  const alternates = candidates.slice(1);
+  const alternates = candidates.slice(1, 5).map(c => ({
+    asin: c.asin,
+    title: c.title,
+    price: c.price,
+    image: c.image
+  }));
 
   return {
     asin: primary.asin,

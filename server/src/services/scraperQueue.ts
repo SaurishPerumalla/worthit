@@ -158,50 +158,11 @@ export async function vetSingleProduct(
     return vettedProduct;
   } catch (error: any) {
     console.error(`Error vetting product for input "${input}":`, error);
-    const fallbackAsin = input.match(/[A-Z0-9]{10}/i)?.[0]?.toUpperCase() || 'UNKNOWN';
-    const fallbackProduct: VettedProduct = {
-      asin: fallbackAsin,
-      inputQuery: input,
-      title: `Item: ${input}`,
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&q=80',
-      currentPrice: 49.99,
-      listPrice: null,
-      inStock: true,
-      isLatestTrackedPriceViaCcc: false,
-      amazonUrl: `https://www.amazon.com/dp/${fallbackAsin}`,
-      cccUrl: `https://camelcamelcamel.com/product/${fallbackAsin}`,
-      chartUrl: buildCccChartUrl(fallbackAsin, 'all'),
-      historical: {
-        asin: fallbackAsin,
-        chartUrl: buildCccChartUrl(fallbackAsin, 'all'),
-        amazon: null,
-        thirdPartyNew: null,
-        allTimeLow: { price: 39.99, date: 'Estimated Low' },
-        allTimeHigh: { price: 59.99, date: 'Estimated High' },
-        historicalAverage: 49.99,
-        cccCurrent: null,
-        historySource: 'amazon_baseline'
-      },
-      verdict: {
-        tier: 'HOLD_TYPICAL_PRICE',
-        score: 50,
-        badgeLabel: 'HOLD / UNCONFIRMED',
-        headline: 'Unable to fully resolve live page',
-        explanation: error?.message || 'Network lookup timed out or item was unavailable. Price baseline estimated.',
-        deltaAvgPercent: 0,
-        deltaLowPercent: 25,
-        rangePositionPercent: 50,
-        isFakeDiscountAlert: false,
-        savingsDollars: 0
-      },
-      alternateMatches: [],
-      scrapedAt: new Date().toISOString(),
-      status: 'warning',
-      errorMessage: error?.message || 'Error resolving item'
-    };
-
-    notify(4, 'error', `Warning on item "${input}": ${error?.message || 'Error'}`, fallbackAsin, fallbackProduct);
-    return fallbackProduct;
+    const msg = error?.message?.includes('No matching')
+      ? `Could not find an Amazon product matching "${input}". Please paste the direct Amazon link or 10-character ASIN (e.g. B0HJB73N19).`
+      : (error?.message || `Failed to vet product "${input}"`);
+    notify(4, 'error', msg, undefined);
+    throw new Error(msg);
   }
 }
 
@@ -222,14 +183,18 @@ export async function processQueueWithConcurrency(
       const idx = currentIndex++;
       const input = inputs[idx];
       
-      const product = await vetSingleProduct(
-        input,
-        thresholdPercent,
-        onProgress,
-        idx,
-        inputs.length
-      );
-      results[idx] = product;
+      try {
+        const product = await vetSingleProduct(
+          input,
+          thresholdPercent,
+          onProgress,
+          idx,
+          inputs.length
+        );
+        results[idx] = product;
+      } catch (err: any) {
+        console.warn(`Failed item in wishlist "${input}":`, err?.message);
+      }
 
       // Rate limit jitter delay between item scrapes
       if (currentIndex < inputs.length) {
@@ -241,5 +206,5 @@ export async function processQueueWithConcurrency(
   const workers = Array.from({ length: Math.min(concurrencyLimit, inputs.length) }, () => worker());
   await Promise.all(workers);
 
-  return results;
+  return results.filter(Boolean);
 }
