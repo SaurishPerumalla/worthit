@@ -170,11 +170,11 @@ export function scoreProductRelevance(title: string, query: string): number {
       /\b(case for|cover for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|silicone case|leather case|hard shell|thumb grip|racing wheel|memory card|microsd|express card|ear\s*tips?|replacement\s+(?:case|charging\s*case|bud|earbud|tip|band|strap)|single\s+(?:left|right)|(?:left|right)\s+(?:side|earbud)\s+only|carabiner|lanyard|keychain|cleaning\s*(?:kit|pen))\b/i.test(t) ||
       /^(case|cover|screen protector|tempered glass|strap|replacement|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
 
-    // Watches legitimately list "<Material> Case" + "Sport Band"; AirPods legitimately list "Charging Case".
+    // Watches legitimately list "<Material> Case" + "Sport Band"; AirPods legitimately list "Charging Case" / "MagSafe Case".
     const hasProtectiveCaseToken =
       /\bcase\b/i.test(t) &&
       !/\b(?:aluminum|titanium|stainless\s*steel|ceramic|watch)\s+case\b/i.test(t) &&
-      !/\bcharging\s+case\b/i.test(t);
+      !/\b(?:charging|magsafe(?:\s+charging)?)\s+case\b/i.test(t);
 
     const hasOtherAccessoryToken = /\b(cover|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner)\b/i.test(t);
     const hasStandaloneBand = /\bband\b/i.test(t) && !/\b(?:apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch)\b/i.test(t);
@@ -187,6 +187,8 @@ export function scoreProductRelevance(title: string, query: string): number {
   // 2. Heavy penalty if brand / platform mismatch
   if (q.includes('iphone') && !t.includes('iphone')) return -50;
   if (q.includes('airpods') && !t.includes('airpods')) return -50;
+  if (/\bairpods\s+pro\b/i.test(q) && /\bairpods\s+max\b/i.test(t)) return -60;
+  if (/\bairpods\s+max\b/i.test(q) && /\bairpods\s+pro\b/i.test(t)) return -60;
   if (q.includes('macbook') && !t.includes('macbook')) return -50;
   if (q.includes('ipad') && !t.includes('ipad')) return -50;
   if (q.includes('galaxy') && !t.includes('galaxy')) return -50;

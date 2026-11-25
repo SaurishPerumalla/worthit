@@ -38,7 +38,7 @@ function extractSpecificModelTokens(query: string): string[] {
  * enforces brand/device relevance, model SKU tokens, rejects accessories & unrequested refurbished units,
  * and blocks cross-generation mismatches (e.g. AirPods Pro 2 vs 3, Watch SE 2 vs 3, WH-1000XM5 vs XM4).
  */
-function scoreStrictRetailerMatch(candidateTitle: string, targetQuery: string): number {
+export function scoreStrictRetailerMatch(candidateTitle: string, targetQuery: string): number {
   const score = scoreProductRelevance(candidateTitle, targetQuery);
   if (score < 0) return -1;
 

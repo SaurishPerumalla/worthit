@@ -2,7 +2,7 @@ import { resolveInputToAsin } from './asinResolver.js';
 import { scrapeAmazonProduct } from './amazonScraper.js';
 import { fetchCccPriceHistory, buildCccChartUrl, createBaselineHistoricalData } from './cccScraper.js';
 import { evaluateDeal } from './vettingEngine.js';
-import { compareRetailers, finalizeRetailerComparisons } from './retailerComparisonService.js';
+import { compareRetailers, finalizeRetailerComparisons, scoreStrictRetailerMatch } from './retailerComparisonService.js';
 import { VettedProduct, ScrapeProgressEvent, RetailerPriceComparison } from '../types.js';
 
 export type ProgressCallback = (event: ScrapeProgressEvent) => void;
@@ -227,8 +227,12 @@ export async function vetSingleProduct(
     ) {
       try {
         const primaryCounts = countFoundStores(retailerComparisons);
+        const compatibleAlts = resolved.alternateMatches
+          .filter((alt) => scoreStrictRetailerMatch(alt.title, input) >= 0)
+          .slice(0, 2);
+
         const altEvaluations = await Promise.all(
-          resolved.alternateMatches.slice(0, 2).map(async (alt, idx) => {
+          compatibleAlts.map(async (alt, idx) => {
             const altUrl = `https://www.amazon.com/dp/${alt.asin}`;
             const altComps = await compareRetailers(
               alt.title,

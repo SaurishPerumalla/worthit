@@ -570,10 +570,12 @@ function extractPricesFromText(text: string): number[] {
   const sanitized = text
     .replace(/Get\s+\$[0-9,.]+\s*[-–—]\s*\$[0-9,.]+\s+off[\s\S]{0,80}?trade\s*in/gi, ' ')
     .replace(/(?:Savings?|Save|Off|Trade[\s-]*in)[:\s]*\$[0-9,.]+/gi, ' ');
+  // Strip markdown bold/sup tags around dollars like "$**149**.99" or "$149<sup>.99</sup>"
+  const norm = sanitized.replace(/\*\*/g, '').replace(/<\/?sup>/gi, '');
   // Matches "$499.99", "$1,299.00", or B&H-style Markdown "$229 00"
   const re = /\$([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|\d{2,4}\s+\d{2})/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(sanitized)) !== null) {
+  while ((m = re.exec(norm)) !== null) {
     const token = m[1].replace(/,/g, '').replace(/\s+/, '.');
     const n = Number(token);
     if (Number.isFinite(n) && n > 0) out.push(Number(n.toFixed(2)));
@@ -1156,9 +1158,10 @@ function extractBestProductFromMarkdown(
   const candidates: Array<{ title: string; url: string; price: number; regularPrice: number | null; inStock: boolean; score: number }> = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // Strip nested markdown images `![...](...)` before parsing outer product links `[Title](url)`
+    const line = lines[i].replace(/!\[[^\]]*\]\([^)]*\)/g, ' ');
     // Look for Markdown links that are actual product headings or links on the target domain
-    const linkMatches = [...line.matchAll(/\[([^\]\n]{6,180})\]\((https?:\/\/[^\s)]+)\)/g)];
+    const linkMatches = [...line.matchAll(/\[([^\]\n]{6,200})\]\((https?:\/\/[^\s)]+)(?:\s+"[^"]*")?\)/g)];
     for (const lm of linkMatches) {
       const rawTitle = lm[1].replace(/[*_`!]/g, '').replace(/^Image\s*\d+:\s*/i, '').trim();
       const rawUrl = lm[2];
