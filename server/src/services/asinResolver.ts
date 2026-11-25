@@ -157,18 +157,18 @@ export function scoreProductRelevance(title: string, query: string): number {
 
   // 1. Heavy penalty if query is hardware/device and result is a standalone accessory
   const wantsAccessory = /\b(case|cover|protector|strap|band|cable|charger|adapter|holder|wallet|skin|stand|mount|film|grip|dock|controller|joy-con|carrying|tip|tips)\b/i.test(q);
-  const wantsDevice = /\b(iphone|ipad|macbook|imac|galaxy|watch|smartwatch|airpods|headphone|earbud|pixel|phone|laptop|tablet|switch|playstation|ps[45]|xbox|steam\s*deck|rog\s*ally|quest|console|tv|monitor|camera|speaker|dyson|kindle)\b/i.test(q);
+  const wantsDevice = /\b(iphone|ipad|macbook|imac|galaxy|watch|smartwatch|airpods|headphone|earbud|beats|studio\s*pro|bose|quietcomfort|sony|wh-?1000xm|sennheiser|jbl|sonos|pixel|phone|laptop|tablet|switch|playstation|ps[45]|xbox|steam\s*deck|rog\s*ally|quest|console|tv|monitor|camera|speaker|dyson|kindle)\b/i.test(q);
 
   if (wantsDevice && !wantsAccessory) {
     // Reject accessory patterns like "ESR for AirPods Pro 3 Case", "Spigen Compatible with...", "Replacement Bud"
     const explicitForTarget =
-      /\b(?:for|compatible\s+with|fits|designed\s+for)\s+(?:the\s+)?(?:apple\s+|nintendo\s+|sony\s+|samsung\s+)?(?:iphone|ipad|airpods|macbook|galaxy|watch|apple\s*watch|switch|pixel|ps[45]|playstation|xbox|steam\s*deck)/i.test(t) &&
+      /\b(?:for|compatible\s+with|fits|designed\s+for)\s+(?:the\s+)?(?:apple\s+|nintendo\s+|sony\s+|samsung\s+|beats\s+|bose\s+)?(?:iphone|ipad|airpods|beats|studio\s*pro|macbook|galaxy|watch|apple\s*watch|switch|pixel|ps[45]|playstation|xbox|steam\s*deck)/i.test(t) &&
       !/\bapplecare\b/i.test(t);
 
     const isAccessoryPhrase =
       explicitForTarget ||
-      /\b(case for|cover for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|silicone case|leather case|hard shell|thumb grip|racing wheel|memory card|microsd|express card|ear\s*tips?|replacement\s+(?:case|charging\s*case|bud|earbud|tip|band|strap)|single\s+(?:left|right)|(?:left|right)\s+(?:side|earbud)\s+only|carabiner|lanyard|keychain|cleaning\s*(?:kit|pen))\b/i.test(t) ||
-      /^(case|cover|screen protector|tempered glass|strap|replacement|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
+      /\b(case for|cover for|covers for|protector for|strap for|band for|cable for|charger for|dock for|mount for|grip for|skin for|controller for|screen protector|tempered glass|carrying case|travel case|protective case|silicone case|leather case|hard shell|thumb grip|racing wheel|memory card|microsd|express card|ear\s*tips?|ear\s*pads?|earpads?|ear\s*cushions?|replacement\s+(?:case|charging\s*case|bud|earbud|tip|band|strap|pad|cushion|headband)|single\s+(?:left|right)|(?:left|right)\s+(?:side|earbud)\s+only|carabiner|lanyard|keychain|cleaning\s*(?:kit|pen))\b/i.test(t) ||
+      /^(case|cover|covers|earpad|earpads|screen protector|tempered glass|strap|replacement|charging cable|charging dock|wall charger|power adapter|carrying case|protective)\b/i.test(t);
 
     // Watches legitimately list "<Material> Case" + "Sport Band"; AirPods legitimately list "Charging Case" / "MagSafe Case".
     const hasProtectiveCaseToken =
@@ -176,7 +176,7 @@ export function scoreProductRelevance(title: string, query: string): number {
       !/\b(?:aluminum|titanium|stainless\s*steel|ceramic|watch)\s+case\b/i.test(t) &&
       !/\b(?:charging|magsafe(?:\s+charging)?)\s+case\b/i.test(t);
 
-    const hasOtherAccessoryToken = /\b(cover|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner)\b/i.test(t);
+    const hasOtherAccessoryToken = /\b(covers?|earpads?|ear\s*pads?|cushions?|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner)\b/i.test(t);
     const hasStandaloneBand = /\bband\b/i.test(t) && !/\b(?:apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch)\b/i.test(t);
 
     if (isAccessoryPhrase || hasProtectiveCaseToken || hasOtherAccessoryToken || hasStandaloneBand) {

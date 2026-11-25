@@ -1867,7 +1867,11 @@ export async function resolveUniversalCustomStore(
           if (!r.ok) return null;
           const xml = await r.text();
           const links = [...xml.matchAll(/<link>([\s\S]*?)<\/link>/g)].map(m => m[1].trim());
-          return links.find((u) => hostnameMatchesDomain(u, identity.domain) && u.length > `https://www.${identity.domain}/`.length + 4) || null;
+          return links.find((u) =>
+            hostnameMatchesDomain(u, identity.domain) &&
+            u.length > `https://www.${identity.domain}/`.length + 4 &&
+            !/sponsored[-_]?ad|sellers\/category\/sponsored|\.pdf(\?|$)|\/lit_files\//i.test(u)
+          ) || null;
         } catch {
           return null;
         }
@@ -1880,8 +1884,14 @@ export async function resolveUniversalCustomStore(
           if (!r.ok) return null;
           const md = await r.text();
           for (const m of md.matchAll(/\[([^\]\n]{6,160})\]\((https?:\/\/[^\s)]+)\)/g)) {
+            const linkTitle = m[1].trim();
+            if (/sponsored\s*ad/i.test(linkTitle)) continue;
             const unwrapped = unwrapRedirectUrl(m[2]);
-            if (hostnameMatchesDomain(unwrapped, identity.domain) && !/ad_domain|duckduckgo\.com/i.test(unwrapped)) {
+            if (
+              hostnameMatchesDomain(unwrapped, identity.domain) &&
+              !/ad_domain|duckduckgo\.com|sponsored[-_]?ad|sellers\/category\/sponsored|\.pdf(\?|$)|\/lit_files\//i.test(unwrapped) &&
+              scoreStrictMatch(linkTitle, targetQuery) >= 0
+            ) {
               return unwrapped;
             }
           }
