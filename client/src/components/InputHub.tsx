@@ -390,10 +390,11 @@ export const InputHub: React.FC<InputHubProps> = ({
         )}
       </div>
 
-      {/* Store Comparison Selector Dropdown + Custom Store/Website Input */}
+      {/* Store Comparison Bar: Always-visible Search/Add Store Input + Quick-Add Dropdown */}
       <div ref={dropdownRef} className="relative">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <div className="px-3.5 py-3 rounded-2xl bg-white/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2.5">
+          {/* Active Stores Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5 text-emerald-500" />
               <span>Compare with:</span>
@@ -420,20 +421,9 @@ export const InputHub: React.FC<InputHubProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setStoreMenuOpen(o => !o)}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors flex-shrink-0"
-          >
-            <span>Stores ({selectedStores.length})</span>
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${storeMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-
-        {storeMenuOpen && (
-          <div className="mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-3 z-30">
-            <div className="flex gap-2">
+          {/* Search/Add Store Bar FIRST, then Quick-Add Stores Dropdown Button */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-1 gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                 <input
@@ -446,14 +436,15 @@ export const InputHub: React.FC<InputHubProps> = ({
                       handleAddCustomStore();
                     }
                   }}
-                  placeholder="Search or add custom store/site (e.g. adorama.com, Staples)..."
+                  disabled={isLoading}
+                  placeholder="Add store or website (e.g. Costco, adorama.com)..."
                   className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleAddCustomStore}
-                disabled={!customStoreInput.trim()}
+                disabled={!customStoreInput.trim() || isLoading}
                 className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-colors flex-shrink-0"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -461,45 +452,57 @@ export const InputHub: React.FC<InputHubProps> = ({
               </button>
             </div>
 
-            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Select Stores to Compare (Amazon Always Included)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onChangeStores(['Target', 'Best Buy', 'Walmart'])}
-                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-                >
-                  Reset Default
-                </button>
-              </div>
+            <button
+              type="button"
+              onClick={() => setStoreMenuOpen(o => !o)}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors flex-shrink-0"
+            >
+              <span>Quick Add ({selectedStores.length})</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${storeMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                {PRESET_STORES.filter(s =>
-                  !customStoreInput.trim() || s.name.toLowerCase().includes(customStoreInput.trim().toLowerCase())
-                ).map((store) => {
-                  const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
-                  return (
-                    <button
-                      key={store.name}
-                      type="button"
-                      onClick={() => toggleStore(store.name)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 text-emerald-900 dark:text-emerald-200'
-                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
-                        <span className="truncate">{store.name}</span>
-                      </span>
-                      {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
+        {storeMenuOpen && (
+          <div className="mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-2.5 z-30">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Quick-Add Popular Stores (Amazon Always Included)
+              </span>
+              <button
+                type="button"
+                onClick={() => onChangeStores(['Target', 'Best Buy', 'Walmart'])}
+                className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                Reset Default
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+              {PRESET_STORES.filter(s =>
+                !customStoreInput.trim() || s.name.toLowerCase().includes(customStoreInput.trim().toLowerCase())
+              ).map((store) => {
+                const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
+                return (
+                  <button
+                    key={store.name}
+                    type="button"
+                    onClick={() => toggleStore(store.name)}
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium border transition-all ${
+                      isSelected
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 text-emerald-900 dark:text-emerald-200'
+                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
+                      <span className="truncate">{store.name}</span>
+                    </span>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
