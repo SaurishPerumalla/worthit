@@ -532,6 +532,7 @@ export async function fetchSerperSiteSearch(
     }
 
     // If Google returned the exact PDP link without a snippet price, try reading the PDP directly
+    let pdpBlocked = false;
     try {
       const pdpRes = await fetchWithTimeout(best.link, {
         headers: { ...BROWSER_HEADERS, 'Accept': 'text/html,application/xhtml+xml' }
@@ -552,6 +553,7 @@ export async function fetchSerperSiteSearch(
           return comparison;
         }
       } else {
+        pdpBlocked = true;
         // Direct PDP blocked (e.g. Cloudflare on Newegg/B&H); try headless Markdown reader on the exact Serper URL
         const jinaPdp = await fetchWithTimeout(`https://r.jina.ai/${best.link}`, {
           headers: { 'Accept': 'text/plain' }
@@ -559,6 +561,7 @@ export async function fetchSerperSiteSearch(
         if (jinaPdp.ok) {
           const md = await jinaPdp.text();
           if (!isBlockedHtmlOrStatus(200, md)) {
+            pdpBlocked = false;
             const mdHit = extractBestProductFromSinglePdpMarkdown(
               md,
               best.link,
@@ -577,6 +580,23 @@ export async function fetchSerperSiteSearch(
       }
     } catch {
       // ignore
+    }
+
+    if (pdpBlocked) {
+      const blockedHit: InternalComparison = {
+        retailer: identity.displayName,
+        price: null,
+        regularPrice: null,
+        url: best.link,
+        inStock: best.inStock,
+        isLowestPrice: false,
+        label: 'Site Blocked',
+        statusReason: 'blocked',
+        verifiedLive: false
+      };
+      serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: blockedHit });
+      pruneMapIfNeeded(serperSiteCache, 200);
+      return blockedHit;
     }
   } catch {
     // ignore
@@ -1808,6 +1828,8 @@ export async function resolveUniversalCustomStore(
     }
   }
 
+  let blockedPdpUrl: string | null = null;
+
   // 4. Headless Markdown Reader (r.jina.ai) — works cleanly on Cloudflare / SPA stores like B&H Photo, Crutchfield, etc.
   try {
     const jinaRes = await fetchWithTimeout(`https://r.jina.ai/${fallbackSearchUrl}`, {
@@ -1888,6 +1910,8 @@ export async function resolveUniversalCustomStore(
             scoreStrictMatch
           );
           if (comparison) return comparison;
+        } else if (isBlockedHtmlOrStatus(directPdp.status, pdpHtml)) {
+          blockedPdpUrl = pdpTarget;
         }
       } catch {
         // try jina reader on discovered PDP
@@ -1900,6 +1924,7 @@ export async function resolveUniversalCustomStore(
         if (jinaPdp.ok) {
           const md = await jinaPdp.text();
           if (!isBlockedHtmlOrStatus(200, md)) {
+            blockedPdpUrl = null;
             const mdHit =
               extractBestProductFromSinglePdpMarkdown(
                 md,
@@ -1920,6 +1945,7 @@ export async function resolveUniversalCustomStore(
             if (mdHit) return mdHit;
           } else {
             sawBlocked = true;
+            blockedPdpUrl = pdpTarget;
           }
         }
       } catch {
@@ -1936,15 +1962,16 @@ export async function resolveUniversalCustomStore(
     if (serperSiteHit) return serperSiteHit;
   }
 
+  const isBlocked = (sawBlocked && !sawReadableSearchPage) || Boolean(blockedPdpUrl);
   return {
     retailer: identity.displayName,
     price: null,
     regularPrice: null,
-    url: fallbackSearchUrl,
+    url: blockedPdpUrl || fallbackSearchUrl,
     inStock: !sawReadableSearchPage,
     isLowestPrice: false,
-    label: sawBlocked && !sawReadableSearchPage ? 'Site Blocked' : 'Not Listed',
-    statusReason: sawBlocked && !sawReadableSearchPage ? 'blocked' : 'not_found',
+    label: isBlocked ? 'Site Blocked' : 'Not Listed',
+    statusReason: isBlocked ? 'blocked' : 'not_found',
     verifiedLive: false
   };
 }
