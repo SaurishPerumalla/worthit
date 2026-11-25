@@ -1011,9 +1011,10 @@ export async function compareRetailers(
   }
 
   // 2b. ONLY invoke paid Serper.dev API if 1+ selected stores are STILL missing a live price!
+  const isAppleEcosystem = /\b(apple|iphone|ipad|macbook|imac|mac\b|airpods|watch|airtag|homepod|beats|vision\s*pro)\b/i.test(productTitle);
   const missingCustomIndices = customResults
     .map((cr, idx) => ({ cr, idx, id: customIdentities[idx] }))
-    .filter(({ cr, id }) => cr.price === null && id.canonicalKey !== 'apple');
+    .filter(({ cr, id }) => cr.price === null && (id.canonicalKey !== 'apple' || isAppleEcosystem));
 
   const needsSerper =
     options?.allowSerper !== false &&

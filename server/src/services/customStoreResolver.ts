@@ -551,6 +551,29 @@ export async function fetchSerperSiteSearch(
           pruneMapIfNeeded(serperSiteCache, 200);
           return comparison;
         }
+      } else {
+        // Direct PDP blocked (e.g. Cloudflare on Newegg/B&H); try headless Markdown reader on the exact Serper URL
+        const jinaPdp = await fetchWithTimeout(`https://r.jina.ai/${best.link}`, {
+          headers: { 'Accept': 'text/plain' }
+        }, 6500);
+        if (jinaPdp.ok) {
+          const md = await jinaPdp.text();
+          if (!isBlockedHtmlOrStatus(200, md)) {
+            const mdHit = extractBestProductFromSinglePdpMarkdown(
+              md,
+              best.link,
+              identity.displayName,
+              targetQuery,
+              amazonPrice,
+              scoreStrictMatch
+            );
+            if (mdHit) {
+              serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: mdHit });
+              pruneMapIfNeeded(serperSiteCache, 200);
+              return mdHit;
+            }
+          }
+        }
       }
     } catch {
       // ignore
