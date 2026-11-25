@@ -30,7 +30,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
       {/* Tile 1: Deal Recommendation Tally */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all flex items-start space-x-3.5">
+      <div className="animate-fade-up bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-start space-x-3.5">
         <div className="h-11 w-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 shadow-sm">
           <CheckCircle2 className="h-5 w-5" />
         </div>
@@ -53,7 +53,10 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       </div>
 
       {/* Tile 2: Approved Cart Total */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all flex items-start space-x-3.5">
+      <div
+        className="animate-fade-up bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-start space-x-3.5"
+        style={{ animationDelay: '60ms' }}
+      >
         <div className="h-11 w-11 rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 flex items-center justify-center flex-shrink-0 shadow-sm">
           <ShoppingBag className="h-5 w-5" />
         </div>
@@ -73,7 +76,10 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
       </div>
 
       {/* Tile 3: Filter & View Toggle */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+      <div
+        className="animate-fade-up bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between"
+        style={{ animationDelay: '120ms' }}
+      >
         <div>
           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
             Filter Results
@@ -85,7 +91,7 @@ export const SummaryDashboard: React.FC<SummaryDashboardProps> = ({
 
         <button
           onClick={() => setShowApprovedOnly(!showApprovedOnly)}
-          className={`w-full mt-2.5 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all shadow-sm ${
+          className={`press-scale w-full mt-2.5 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all shadow-sm ${
             showApprovedOnly
               ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
               : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700'

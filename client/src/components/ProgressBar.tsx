@@ -27,7 +27,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
   ];
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-lg dark:shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-300 transition-colors">
+    <div className="bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-lg dark:shadow-2xl space-y-4 animate-fade-down transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center space-x-2.5">
           <Loader2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 animate-spin flex-shrink-0" />
@@ -52,9 +52,11 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
       {/* Progress Bar Line */}
       <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-2.5 overflow-hidden p-[1px] border border-slate-300 dark:border-slate-800">
         <div
-          className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm shadow-emerald-500/50"
+          className="relative overflow-hidden bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-500 ease-out shadow-sm shadow-emerald-500/50"
           style={{ width: `${Math.max(5, overallPercent)}%` }}
-        ></div>
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-sweep" />
+        </div>
       </div>
 
       {/* Step Pills */}

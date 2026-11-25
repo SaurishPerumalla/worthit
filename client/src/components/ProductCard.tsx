@@ -85,7 +85,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSwitchVaria
   const RecIcon = rec.icon;
 
   return (
-    <div className={`rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md hover:shadow-xl transition-all duration-200 overflow-hidden flex flex-col justify-between ${rec.cardRing}`}>
+    <div className={`animate-fade-up rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col justify-between ${rec.cardRing}`}>
       <div className="p-5 space-y-4">
         {/* Product Identity Header Tile */}
         <div className="flex gap-3.5 items-start">
@@ -148,7 +148,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSwitchVaria
                 </button>
 
                 {showVariations && (
-                  <div className="absolute left-0 mt-1 z-30 w-full sm:w-80 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1">
+                  <div className="animate-fade-down absolute left-0 mt-1 z-30 w-full sm:w-80 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 space-y-1">
                     <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-2 py-1 uppercase tracking-wider">
                       Switch to Variation:
                     </div>

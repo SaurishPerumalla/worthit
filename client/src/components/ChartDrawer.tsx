@@ -46,7 +46,7 @@ export const ChartDrawer: React.FC<ChartDrawerProps> = ({ asin, title }) => {
       </button>
 
       {isOpen && (
-        <div className="mt-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in duration-200 transition-colors">
+        <div className="mt-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-down transition-colors">
           {/* Header & Time Toggles */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">

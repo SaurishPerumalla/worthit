@@ -359,7 +359,7 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Error Callout */}
         {errorMessage && (
-          <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/50 flex items-start space-x-3 text-sm text-rose-900 dark:text-rose-200 animate-in fade-in">
+          <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-500/50 flex items-start space-x-3 text-sm text-rose-900 dark:text-rose-200 animate-fade-down">
             <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <span className="font-bold block">Notice</span>

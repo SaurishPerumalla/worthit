@@ -168,7 +168,7 @@ export const InputHub: React.FC<InputHubProps> = ({
         </button>
 
         {activeTab === 'single' && (
-          <div className="px-4 pb-4 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="animate-fade-down px-4 pb-4 pt-1 border-t border-slate-100 dark:border-slate-800/80">
             <form onSubmit={handleSingleSubmit}>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
@@ -186,10 +186,10 @@ export const InputHub: React.FC<InputHubProps> = ({
                 <button
                   type="submit"
                   disabled={!singleInput.trim() || isLoading}
-                  className="py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-emerald-700/20 whitespace-nowrap flex-shrink-0"
+                  className="group press-scale py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-emerald-700/20 whitespace-nowrap flex-shrink-0"
                 >
                   <span>{isLoading ? 'Checking...' : 'Check Deal'}</span>
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </button>
               </div>
             </form>
@@ -403,7 +403,7 @@ export const InputHub: React.FC<InputHubProps> = ({
               {selectedStores.map((store) => (
                 <span
                   key={store}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                  className="animate-scale-in inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
                 >
                   <span>{store}</span>
                   {selectedStores.length > 1 && (
@@ -465,7 +465,7 @@ export const InputHub: React.FC<InputHubProps> = ({
         </div>
 
         {storeMenuOpen && (
-          <div className="mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-2.5 z-30">
+          <div className="animate-fade-down mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-2.5 z-30">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Quick-Add Popular Stores (Amazon Always Included)

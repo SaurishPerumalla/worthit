@@ -92,7 +92,7 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
 
       {/* Grid of Retailer Prices */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {comparisons.map((c) => {
+        {comparisons.map((c, idx) => {
           const meta = getRetailerMeta(c.retailer);
           const hasPrice = typeof c.price === 'number' && c.price > 0;
 
@@ -102,9 +102,10 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
               href={c.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between group hover:shadow-md ${
+              style={{ animationDelay: `${Math.min(idx, 7) * 45}ms` }}
+              className={`animate-fade-up press-scale p-2.5 rounded-xl border transition-all duration-200 flex flex-col justify-between group hover:shadow-md hover:-translate-y-0.5 ${
                 c.isLowestPrice && hasPrice
-                  ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/50 shadow-sm ring-1 ring-emerald-400/30'
+                  ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/50 shadow-sm ring-1 ring-emerald-400/30 animate-glow-pulse'
                   : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
               }`}
             >
