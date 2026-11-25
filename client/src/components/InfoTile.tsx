@@ -25,8 +25,8 @@ export const InfoTile: React.FC<InfoTileProps> = ({ onQuickSearch }) => {
           How DealChaser Works
         </h2>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
-          Spot fake discounts using real price history and compare live deals across{' '}
-          <span className="text-slate-800 dark:text-slate-200 font-medium">Amazon, Target, Best Buy &amp; Walmart</span>.
+          Spot fake discounts using real price history and compare prices across{' '}
+          <span className="text-slate-800 dark:text-slate-200 font-medium">Amazon, Target, Best Buy, Walmart &amp; custom stores</span>.
         </p>
       </div>
 
@@ -43,8 +43,8 @@ export const InfoTile: React.FC<InfoTileProps> = ({ onQuickSearch }) => {
         <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80">
           <Tag className="h-4 w-4 text-teal-500 flex-shrink-0" />
           <div className="min-w-0">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">4-Store Check</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Live cross-retailer prices</div>
+            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">Multi-Store Check</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">Any major or custom store</div>
           </div>
         </div>
 
