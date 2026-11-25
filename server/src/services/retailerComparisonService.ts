@@ -6,6 +6,7 @@ import {
   normalizeStoreIdentity,
   resolveTargetRedSkySearch,
   fetchDekuDealsPrices,
+  fetchSerperShoppingOffers,
   resolveUniversalCustomStore
 } from './customStoreResolver.js';
 
@@ -945,23 +946,25 @@ export async function compareRetailers(
 
   const merchantPromise = fetchAggregatedMerchants(productTitle, amazonPrice);
   const dekuPromise = fetchDekuDealsPrices(productTitle, amazonPrice, scoreStrictRetailerMatch);
+  const serperPromise = fetchSerperShoppingOffers(productTitle, amazonPrice, scoreStrictRetailerMatch);
 
   const customStoresPromise = (async (): Promise<InternalComparison[]> => {
     if (customIdentities.length === 0) return [];
-    const dekuOffers = await dekuPromise;
+    const [dekuOffers, serperOffers] = await Promise.all([dekuPromise, serperPromise]);
     return await Promise.all(
       customIdentities.map((identity) =>
-        resolveUniversalCustomStore(identity, productTitle, amazonPrice, scoreStrictRetailerMatch, dekuOffers)
+        resolveUniversalCustomStore(identity, productTitle, amazonPrice, scoreStrictRetailerMatch, dekuOffers, serperOffers)
       )
     );
   })();
 
-  const [targetMatch, bestBuyMatch, initialWalmartMatch, customResults, dekuOffers] = await Promise.all([
+  const [targetMatch, bestBuyMatch, initialWalmartMatch, customResults, dekuOffers, serperOffers] = await Promise.all([
     wantsTarget ? resolveTargetLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
     wantsBestBuy ? resolveBestBuyLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
     walmartSeedUrl ? resolveWalmartLiveProduct(walmartSeedUrl, productTitle) : Promise.resolve(null),
     customStoresPromise,
-    dekuPromise
+    dekuPromise,
+    serperPromise
   ]);
 
   let finalTargetMatch = targetMatch;
@@ -995,15 +998,15 @@ export async function compareRetailers(
     if (retryWalmart) walmartMatch = retryWalmart;
   }
 
-  // Fallback to live DekuDeals pricing for Target / Best Buy / Walmart if direct API was blocked on cloud IP
-  if (wantsTarget && !finalTargetMatch && dekuOffers.has('target')) {
-    finalTargetMatch = dekuOffers.get('target') || null;
+  // Fallback to live DekuDeals or Serper Google Shopping pricing for Target / Best Buy / Walmart
+  if (wantsTarget && !finalTargetMatch) {
+    finalTargetMatch = dekuOffers.get('target') || serperOffers.get('target') || null;
   }
-  if (wantsBestBuy && !finalBestBuyMatch && dekuOffers.has('best buy')) {
-    finalBestBuyMatch = dekuOffers.get('best buy') || null;
+  if (wantsBestBuy && !finalBestBuyMatch) {
+    finalBestBuyMatch = dekuOffers.get('best buy') || serperOffers.get('best buy') || null;
   }
-  if (wantsWalmart && !walmartMatch && dekuOffers.has('walmart')) {
-    walmartMatch = dekuOffers.get('walmart') || null;
+  if (wantsWalmart && !walmartMatch) {
+    walmartMatch = dekuOffers.get('walmart') || serperOffers.get('walmart') || null;
   }
 
   if (finalTargetMatch) comparisons.push(finalTargetMatch);

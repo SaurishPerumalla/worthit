@@ -322,12 +322,194 @@ function isPricePlausible(price: number, amazonPrice: number): boolean {
 }
 
 function parseUsdNumber(raw: unknown): number | null {
+  if (raw === undefined || raw === null) return null;
   if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? Number(raw.toFixed(2)) : null;
   if (typeof raw !== 'string') return null;
   const cleaned = raw.replace(/,/g, '').match(/([0-9]+(?:\.[0-9]{1,2})?)/);
   if (!cleaned) return null;
   const val = Number(cleaned[1]);
   return Number.isFinite(val) && val > 0 ? Number(val.toFixed(2)) : null;
+}
+
+/**
+ * Fetches live multi-store Google Shopping results via Serper.dev (1 API credit for all stores).
+ * Keyed by canonical store key (e.g. 'home depot', 'lowes', 'costco', 'newegg', 'gamestop').
+ */
+export async function fetchSerperShoppingOffers(
+  targetQuery: string,
+  amazonPrice: number,
+  scoreStrictMatch: ScoreMatcherFn
+): Promise<Map<string, InternalComparison>> {
+  const results = new Map<string, InternalComparison>();
+  const apiKey = process.env.SERPER_API_KEY?.trim();
+  if (!apiKey) return results;
+
+  try {
+    const cleanQ = simplifyProductQueryForStore(targetQuery);
+    const res = await fetchWithTimeout('https://google.serper.dev/shopping', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        q: cleanQ,
+        gl: 'us',
+        hl: 'en',
+        num: 20
+      })
+    }, 4000);
+
+    if (!res.ok) return results;
+    const data: any = await res.json();
+    const items: any[] = Array.isArray(data?.shopping) ? data.shopping : [];
+
+    const bestScoreByKey = new Map<string, number>();
+
+    for (const item of items) {
+      const title = String(item?.title || '').trim();
+      const source = String(item?.source || '').trim();
+      const link = String(item?.link || '').trim();
+      const rawPrice = String(item?.price || '').trim();
+
+      if (!title || !source || !link || !rawPrice) continue;
+      if (/\b(cad|eur|gbp|aud|mxn)\b/i.test(rawPrice)) continue;
+
+      const price = parseUsdNumber(rawPrice);
+      if (price === null || !isPricePlausible(price, amazonPrice)) continue;
+
+      const sc = scoreStrictMatch(title, targetQuery);
+      if (sc < 0) continue;
+
+      const identity = normalizeStoreIdentity(source);
+      if (identity.canonicalKey === 'amazon') continue;
+
+      const prevScore = bestScoreByKey.get(identity.canonicalKey) ?? -Infinity;
+      if (sc > prevScore) {
+        bestScoreByKey.set(identity.canonicalKey, sc);
+        results.set(identity.canonicalKey, {
+          retailer: identity.displayName,
+          price,
+          regularPrice: null,
+          url: link,
+          inStock: true,
+          isLowestPrice: false,
+          label: `${identity.displayName} Price`,
+          verifiedLive: true
+        });
+      }
+    }
+  } catch {
+    // Fail softly if Serper times out or quota is exhausted
+  }
+
+  return results;
+}
+
+/**
+ * Queries Google Web Search via Serper.dev for `site:<domain> <product>` as a universal
+ * fallback for any custom store website not listed in Google Shopping.
+ */
+async function fetchSerperSiteSearch(
+  identity: StoreIdentity,
+  cleanQ: string,
+  targetQuery: string,
+  amazonPrice: number,
+  scoreStrictMatch: ScoreMatcherFn
+): Promise<InternalComparison | null> {
+  const apiKey = process.env.SERPER_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetchWithTimeout('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        q: `site:${identity.domain} ${cleanQ}`,
+        gl: 'us',
+        hl: 'en',
+        num: 5
+      })
+    }, 3800);
+
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const organic: any[] = Array.isArray(data?.organic) ? data.organic : [];
+
+    const ranked: Array<{ title: string; link: string; price: number | null; inStock: boolean; score: number }> = [];
+
+    for (const item of organic) {
+      const title = String(item?.title || '').replace(/\s*[-|–]\s*[^-|–]+$/, '').trim();
+      const link = String(item?.link || '').trim();
+      const snippet = String(item?.snippet || '');
+      const priceRange = String(item?.priceRange || '');
+      const attrs = item?.attributes ? JSON.stringify(item.attributes) : '';
+
+      if (!link || !hostnameMatchesDomain(link, identity.domain)) continue;
+
+      const sc = scoreStrictMatch(title || item?.title || '', targetQuery);
+      if (sc < 0) continue;
+
+      const combinedText = `${priceRange} ${attrs} ${snippet}`;
+      if (/\b(cad|eur|gbp)\b/i.test(combinedText)) continue;
+
+      const prices = extractPricesFromText(combinedText).filter((p) => isPricePlausible(p, amazonPrice));
+      const inStock = !/\bout of stock\b|\bsold out\b|\bunavailable\b/i.test(combinedText);
+
+      ranked.push({
+        title,
+        link,
+        price: prices[0] ?? null,
+        inStock,
+        score: sc + (prices[0] ? 15 : 0)
+      });
+    }
+
+    ranked.sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    if (!best) return null;
+
+    if (best.price !== null) {
+      return {
+        retailer: identity.displayName,
+        price: best.price,
+        regularPrice: null,
+        url: best.link,
+        inStock: best.inStock,
+        isLowestPrice: false,
+        label: best.inStock ? `${identity.displayName} Price` : 'Out of Stock',
+        verifiedLive: true
+      };
+    }
+
+    // If Google returned the exact PDP link without a snippet price, try reading the PDP directly
+    try {
+      const pdpRes = await fetchWithTimeout(best.link, {
+        headers: { ...BROWSER_HEADERS, 'Accept': 'text/html,application/xhtml+xml' }
+      }, 3000);
+      const html = pdpRes.ok ? await pdpRes.text() : '';
+      if (pdpRes.ok && !isBlockedHtmlOrStatus(pdpRes.status, html)) {
+        const { comparison } = extractBestProductFromHtml(
+          html,
+          pdpRes.url || best.link,
+          identity.displayName,
+          targetQuery,
+          amazonPrice,
+          scoreStrictMatch
+        );
+        if (comparison) return comparison;
+      }
+    } catch {
+      // ignore
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
 }
 
 function extractPricesFromText(text: string): number[] {
@@ -1415,14 +1597,18 @@ export async function resolveUniversalCustomStore(
   targetQuery: string,
   amazonPrice: number,
   scoreStrictMatch: ScoreMatcherFn,
-  dekuOffers?: Map<string, InternalComparison>
+  dekuOffers?: Map<string, InternalComparison>,
+  serperOffers?: Map<string, InternalComparison>
 ): Promise<InternalComparison> {
   const cleanQ = simplifyProductQueryForStore(targetQuery);
   const fallbackSearchUrl = identity.buildSearchUrl(cleanQ);
 
-  // 0. Check pre-fetched DekuDeals cross-store table
+  // 0. Check pre-fetched DekuDeals or Serper Google Shopping cross-store tables
   const dekuHit = dekuOffers?.get(identity.canonicalKey);
   if (dekuHit) return dekuHit;
+
+  const serperHit = serperOffers?.get(identity.canonicalKey);
+  if (serperHit) return serperHit;
 
   // 1. Specialized high-accuracy store resolvers
   if (identity.canonicalKey === 'gamestop') {
@@ -1455,6 +1641,10 @@ export async function resolveUniversalCustomStore(
 
   let sawBlocked = false;
   let sawReadableSearchPage = false;
+
+  // 1b. Serper.dev targeted `site:<domain>` fallback (fast, bypasses WAFs on arbitrary websites)
+  const serperSiteHit = await fetchSerperSiteSearch(identity, cleanQ, targetQuery, amazonPrice, scoreStrictMatch);
+  if (serperSiteHit) return serperSiteHit;
 
   // 2. Concurrent Shopify + WooCommerce fast platform probes
   const [shopifyHit, wooHit] = await Promise.all([

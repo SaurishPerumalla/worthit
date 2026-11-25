@@ -27,6 +27,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'CamelScout Pro API',
     version: '1.1.0',
+    serperEnabled: Boolean(process.env.SERPER_API_KEY?.trim()),
     timestamp: new Date().toISOString()
   });
 });
