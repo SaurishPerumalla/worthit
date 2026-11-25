@@ -331,7 +331,7 @@ export function simplifyProductQueryForStore(query: string): string {
 
 function isPricePlausible(price: number, amazonPrice: number): boolean {
   if (!Number.isFinite(price) || price <= 0) return false;
-  if (amazonPrice > 50 && price < amazonPrice * 0.4) return false;
+  if (amazonPrice > 50 && price < amazonPrice * 0.55) return false;
   if (amazonPrice > 20 && price > amazonPrice * 3.5) return false;
   return true;
 }
