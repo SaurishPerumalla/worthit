@@ -200,28 +200,163 @@ export async function vetSingleProduct(
       console.warn('Cross-retailer comparison skipped:', retailerErr);
     }
 
+    // If user searched by keyword (not exact ASIN/URL) and one or more selected stores
+    // did not carry the #1 Amazon match, check alternate candidates to find one available
+    // across all (or the most) selected stores first!
+    let finalAsin = asin;
+    let finalAmazonUrl = amazonUrl;
+    let finalMatchNote = resolved.matchNote;
+    let finalVerdict = verdict;
+
+    const countFoundStores = (comps?: RetailerPriceComparison[]) => {
+      if (!comps) return { totalFound: 0, liveFound: 0 };
+      const nonAmazon = comps.filter((c) => c.retailer !== 'Amazon');
+      const totalFound = nonAmazon.filter((c) => typeof c.price === 'number' && c.price > 0).length;
+      const liveFound = nonAmazon.filter(
+        (c) => typeof c.price === 'number' && c.price > 0 && c.label !== 'MSRP' && c.label !== 'Standard'
+      ).length;
+      return { totalFound, liveFound };
+    };
+
+    if (
+      resolved.inputType === 'search' &&
+      resolved.alternateMatches.length > 0 &&
+      retailerComparisons &&
+      retailerComparisons.some((c) => c.retailer !== 'Amazon' && (c.price === null || c.statusReason === 'not_found'))
+    ) {
+      try {
+        const primaryCounts = countFoundStores(retailerComparisons);
+        const altEvaluations = await Promise.all(
+          resolved.alternateMatches.slice(0, 4).map(async (alt, idx) => {
+            const altUrl = `https://www.amazon.com/dp/${alt.asin}`;
+            const altComps = await compareRetailers(
+              alt.title,
+              alt.price || currentPrice || 0,
+              altUrl,
+              null,
+              null,
+              null,
+              selectedStores
+            ).catch(() => null);
+            const counts = countFoundStores(altComps || undefined);
+            return { alt, idx, altUrl, altComps, ...counts };
+          })
+        );
+
+        const betterAlt = altEvaluations
+          .filter(
+            (e) =>
+              e.altComps &&
+              (e.totalFound > primaryCounts.totalFound ||
+                (e.totalFound === primaryCounts.totalFound && e.liveFound > primaryCounts.liveFound))
+          )
+          .sort((a, b) => b.totalFound - a.totalFound || b.liveFound - a.liveFound || a.idx - b.idx)[0];
+
+        if (betterAlt && betterAlt.altComps) {
+          const prevPrimary = {
+            asin,
+            title: amazonData.title || resolved.resolvedTitle || input,
+            price: currentPrice,
+            image: amazonData.image || resolved.resolvedImage || null
+          };
+
+          finalAsin = betterAlt.alt.asin;
+          finalAmazonUrl = betterAlt.altUrl;
+
+          const [altAmazonData, altHistoricalRaw] = await Promise.all([
+            scrapeAmazonProduct(finalAsin).catch(() => null),
+            fetchCccPriceHistory(finalAsin, betterAlt.alt.price, null).catch(() => null)
+          ]);
+
+          if (altAmazonData) {
+            amazonData.title = altAmazonData.title || betterAlt.alt.title;
+            amazonData.image = altAmazonData.image || betterAlt.alt.image;
+            amazonData.listPrice = altAmazonData.listPrice;
+            amazonData.inStock = altAmazonData.inStock;
+          } else {
+            amazonData.title = betterAlt.alt.title;
+            amazonData.image = betterAlt.alt.image;
+            amazonData.listPrice = null;
+          }
+
+          let altPrice = altAmazonData?.price ?? betterAlt.alt.price ?? null;
+          let altHist = altHistoricalRaw || createBaselineHistoricalData(finalAsin, buildCccChartUrl(finalAsin, 'all'), altPrice, amazonData.listPrice);
+          if (altHist.historySource === 'amazon_baseline' && (altPrice || amazonData.listPrice)) {
+            altHist = createBaselineHistoricalData(finalAsin, altHist.chartUrl, altPrice, amazonData.listPrice);
+          }
+
+          if (altPrice === null || altPrice <= 0) {
+            altPrice = altHist.cccCurrent?.price || altHist.allTimeLow?.price || 29.99;
+            isLatestTrackedPriceViaCcc = true;
+          } else {
+            isLatestTrackedPriceViaCcc = false;
+          }
+
+          if (altHist.allTimeLow.price > altHist.allTimeHigh.price) {
+            const tmp = altHist.allTimeLow;
+            altHist.allTimeLow = altHist.allTimeHigh;
+            altHist.allTimeHigh = tmp;
+          }
+          if (altHist.historicalAverage < altHist.allTimeLow.price) altHist.historicalAverage = altHist.allTimeLow.price;
+          if (altHist.historicalAverage > altHist.allTimeHigh.price) altHist.historicalAverage = altHist.allTimeHigh.price;
+
+          currentPrice = Number(altPrice.toFixed(2));
+          altHist.historicalAverage = Number(altHist.historicalAverage.toFixed(2));
+          altHist.allTimeLow.price = Number(altHist.allTimeLow.price.toFixed(2));
+          altHist.allTimeHigh.price = Number(altHist.allTimeHigh.price.toFixed(2));
+          historical = altHist;
+
+          finalVerdict = evaluateDeal(currentPrice, amazonData.listPrice, historical, thresholdPercent);
+          retailerComparisons = finalizeRetailerComparisons(
+            betterAlt.altComps,
+            amazonData.title || input,
+            currentPrice,
+            finalAmazonUrl,
+            amazonData.listPrice,
+            undefined,
+            historical?.allTimeHigh?.price,
+            historical?.historicalAverage,
+            selectedStores
+          );
+
+          amazonData.alternateMatches = [
+            prevPrimary,
+            ...resolved.alternateMatches.filter((m) => m.asin !== finalAsin)
+          ];
+
+          const nonAmazonTotal = retailerComparisons.filter((c) => c.retailer !== 'Amazon').length;
+          finalMatchNote =
+            betterAlt.totalFound >= nonAmazonTotal
+              ? 'Available across all selected stores'
+              : `Matched at ${betterAlt.totalFound + 1}/${nonAmazonTotal + 1} selected stores`;
+        }
+      } catch (multiErr) {
+        console.warn('Multi-store candidate swap skipped:', multiErr);
+      }
+    }
+
     const vettedProduct: VettedProduct = {
-      asin,
+      asin: finalAsin,
       inputQuery: input,
-      title: amazonData.title || `Amazon Product (${asin})`,
-      image: amazonData.image || `https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&Format=_SL300_&ASIN=${asin}&MarketPlace=US`,
+      title: amazonData.title || `Amazon Product (${finalAsin})`,
+      image: amazonData.image || `https://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&Format=_SL300_&ASIN=${finalAsin}&MarketPlace=US`,
       currentPrice,
       listPrice: amazonData.listPrice,
       inStock: amazonData.inStock,
       isLatestTrackedPriceViaCcc,
-      amazonUrl,
-      cccUrl: `https://camelcamelcamel.com/product/${asin}`,
-      chartUrl: buildCccChartUrl(asin, 'all'),
+      amazonUrl: finalAmazonUrl,
+      cccUrl: `https://camelcamelcamel.com/product/${finalAsin}`,
+      chartUrl: buildCccChartUrl(finalAsin, 'all'),
       historical,
-      verdict,
-      alternateMatches: resolved.alternateMatches,
-      matchNote: resolved.matchNote,
+      verdict: finalVerdict,
+      alternateMatches: amazonData.alternateMatches,
+      matchNote: finalMatchNote,
       retailerComparisons,
       scrapedAt: new Date().toISOString(),
       status: 'success'
     };
 
-    notify(4, 'done', `[4/4] Deal verdict calculated`, asin, vettedProduct);
+    notify(4, 'done', `[4/4] Deal verdict calculated`, finalAsin, vettedProduct);
     return vettedProduct;
   } catch (error: any) {
     console.error(`Error vetting product for input "${input}":`, error);
