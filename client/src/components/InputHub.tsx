@@ -433,57 +433,23 @@ export const InputHub: React.FC<InputHubProps> = ({
 
         {storeMenuOpen && (
           <div className="mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-3 z-30">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Select Stores to Compare (Amazon Always Included)
-              </span>
-              <button
-                type="button"
-                onClick={() => onChangeStores(['Target', 'Best Buy', 'Walmart'])}
-                className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-              >
-                Reset Default
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-              {PRESET_STORES.map((store) => {
-                const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
-                return (
-                  <button
-                    key={store.name}
-                    type="button"
-                    onClick={() => toggleStore(store.name)}
-                    className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium border transition-all ${
-                      isSelected
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 text-emerald-900 dark:text-emerald-200'
-                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
-                      <span className="truncate">{store.name}</span>
-                    </span>
-                    {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex gap-2">
-              <input
-                type="text"
-                value={customStoreInput}
-                onChange={(e) => setCustomStoreInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCustomStore();
-                  }
-                }}
-                placeholder="Add custom store or site (e.g. adorama.com, Staples)..."
-                className="flex-1 bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="text"
+                  value={customStoreInput}
+                  onChange={(e) => setCustomStoreInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomStore();
+                    }
+                  }}
+                  placeholder="Search or add custom store/site (e.g. adorama.com, Staples)..."
+                  className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handleAddCustomStore}
@@ -493,6 +459,47 @@ export const InputHub: React.FC<InputHubProps> = ({
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add</span>
               </button>
+            </div>
+
+            <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Select Stores to Compare (Amazon Always Included)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onChangeStores(['Target', 'Best Buy', 'Walmart'])}
+                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  Reset Default
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                {PRESET_STORES.filter(s =>
+                  !customStoreInput.trim() || s.name.toLowerCase().includes(customStoreInput.trim().toLowerCase())
+                ).map((store) => {
+                  const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
+                  return (
+                    <button
+                      key={store.name}
+                      type="button"
+                      onClick={() => toggleStore(store.name)}
+                      className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium border transition-all ${
+                        isSelected
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 text-emerald-900 dark:text-emerald-200'
+                          : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
+                        <span className="truncate">{store.name}</span>
+                      </span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
