@@ -822,9 +822,89 @@ async function fetchAggregatedMerchants(query: string, amazonPrice: number): Pro
   return { comparisons, highestRegularPrice, rawWalmartLink, rawBestBuySku, rawTargetLink };
 }
 
+const DEFAULT_STORES = ['Target', 'Best Buy', 'Walmart'];
+
+const PRESET_STORE_SEARCH_URLS: Record<string, { domains: string[]; buildSearchUrl: (q: string) => string }> = {
+  'costco': {
+    domains: ['costco.com'],
+    buildSearchUrl: (q) => `https://www.costco.com/CatalogSearch?dept=All&keyword=${encodeURIComponent(q)}`
+  },
+  'b&h photo': {
+    domains: ['bhphotovideo.com'],
+    buildSearchUrl: (q) => `https://www.bhphotovideo.com/c/search?Ntt=${encodeURIComponent(q)}`
+  },
+  'b&h': {
+    domains: ['bhphotovideo.com'],
+    buildSearchUrl: (q) => `https://www.bhphotovideo.com/c/search?Ntt=${encodeURIComponent(q)}`
+  },
+  'newegg': {
+    domains: ['newegg.com'],
+    buildSearchUrl: (q) => `https://www.newegg.com/p/pl?d=${encodeURIComponent(q)}`
+  },
+  'gamestop': {
+    domains: ['gamestop.com'],
+    buildSearchUrl: (q) => `https://www.gamestop.com/search/?q=${encodeURIComponent(q)}`
+  },
+  'micro center': {
+    domains: ['microcenter.com'],
+    buildSearchUrl: (q) => `https://www.microcenter.com/search/search_results.aspx?Ntt=${encodeURIComponent(q)}`
+  },
+  'apple': {
+    domains: ['apple.com'],
+    buildSearchUrl: (q) => `https://www.apple.com/us/search/${encodeURIComponent(q)}`
+  },
+  'ebay': {
+    domains: ['ebay.com'],
+    buildSearchUrl: (q) => `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_BIN=1&LH_ItemCondition=1000`
+  },
+  'adorama': {
+    domains: ['adorama.com'],
+    buildSearchUrl: (q) => `https://www.adorama.com/l/?searchinfo=${encodeURIComponent(q)}`
+  },
+  'home depot': {
+    domains: ['homedepot.com'],
+    buildSearchUrl: (q) => `https://www.homedepot.com/s/${encodeURIComponent(q)}`
+  },
+  'staples': {
+    domains: ['staples.com'],
+    buildSearchUrl: (q) => `https://www.staples.com/services/search?q=${encodeURIComponent(q)}`
+  }
+};
+
+function normalizeSelectedStores(stores?: string[]): string[] {
+  if (!Array.isArray(stores) || stores.length === 0) return [...DEFAULT_STORES];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of stores) {
+    const clean = String(raw || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '');
+    if (!clean || clean.toLowerCase() === 'amazon') continue;
+    const key = clean.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(clean);
+    }
+  }
+  return out.length > 0 ? out : [...DEFAULT_STORES];
+}
+
+function buildCustomStoreSearchUrl(storeName: string, cleanSearch: string): string {
+  const lower = storeName.toLowerCase();
+  const preset = PRESET_STORE_SEARCH_URLS[lower];
+  if (preset) return preset.buildSearchUrl(cleanSearch);
+
+  // If user typed a domain like "adorama.com" or "bhphotovideo.com"
+  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) {
+    const matchedPreset = Object.values(PRESET_STORE_SEARCH_URLS).find(p => p.domains.includes(lower));
+    if (matchedPreset) return matchedPreset.buildSearchUrl(cleanSearch);
+    return `https://www.google.com/search?q=${encodeURIComponent(`site:${lower} ${cleanSearch}`)}`;
+  }
+
+  return `https://www.google.com/search?q=${encodeURIComponent(`${storeName} ${cleanSearch}`)}`;
+}
+
 /**
  * Multi-Retailer Price Comparison Engine:
- * Compares Amazon live price against Target, Best Buy, and Walmart in parallel
+ * Compares Amazon live price against user-selected & custom stores in parallel
  * with tight timeouts so production cloud deployments remain fast and reliable.
  */
 export async function compareRetailers(
@@ -833,8 +913,19 @@ export async function compareRetailers(
   amazonUrl: string,
   listPrice?: number | null,
   allTimeHigh?: number | null,
-  historicalAvg?: number | null
+  historicalAvg?: number | null,
+  selectedStores?: string[]
 ): Promise<RetailerPriceComparison[]> {
+  const activeStores = normalizeSelectedStores(selectedStores);
+  const activeLower = new Set(activeStores.map(s => s.toLowerCase()));
+  const wantsTarget = activeLower.has('target') || activeLower.has('target.com');
+  const wantsBestBuy = activeLower.has('best buy') || activeLower.has('bestbuy') || activeLower.has('bestbuy.com');
+  const wantsWalmart = activeLower.has('walmart') || activeLower.has('walmart.com');
+  const customStores = activeStores.filter(s => {
+    const l = s.toLowerCase();
+    return l !== 'target' && l !== 'target.com' && l !== 'best buy' && l !== 'bestbuy' && l !== 'bestbuy.com' && l !== 'walmart' && l !== 'walmart.com';
+  });
+
   const comparisons: InternalComparison[] = [];
 
   // 1. Amazon entry
@@ -848,24 +939,26 @@ export async function compareRetailers(
     verifiedLive: true
   });
 
-  // 2. Run aggregator + Target + Best Buy + Walmart in parallel!
+  // 2. Run aggregator + selected Target / Best Buy / Walmart in parallel!
   const lowerTitle = productTitle.toLowerCase();
   const wantsBundle = /\b(bundle|pack|kit|combo|includes|with\s+(?:mario|zelda|game))\b|\s\+\s(?!cellular\b)/i.test(lowerTitle);
 
   let walmartSeedUrl: string | undefined;
-  for (const seed of WALMART_PRODUCT_SEEDS) {
-    if (seed.keywords.some(kw => lowerTitle.includes(kw))) {
-      if (seed.bundleOnly === false && wantsBundle) continue;
-      walmartSeedUrl = seed.url;
-      break;
+  if (wantsWalmart) {
+    for (const seed of WALMART_PRODUCT_SEEDS) {
+      if (seed.keywords.some(kw => lowerTitle.includes(kw))) {
+        if (seed.bundleOnly === false && wantsBundle) continue;
+        walmartSeedUrl = seed.url;
+        break;
+      }
     }
   }
 
   const merchantPromise = fetchAggregatedMerchants(productTitle, amazonPrice);
 
   const [targetMatch, bestBuyMatch, initialWalmartMatch] = await Promise.all([
-    resolveTargetLiveProduct(productTitle, amazonPrice),
-    resolveBestBuyLiveProduct(productTitle, amazonPrice),
+    wantsTarget ? resolveTargetLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
+    wantsBestBuy ? resolveBestBuyLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
     walmartSeedUrl ? resolveWalmartLiveProduct(walmartSeedUrl, productTitle) : Promise.resolve(null)
   ]);
 
@@ -874,19 +967,24 @@ export async function compareRetailers(
   let walmartMatch = initialWalmartMatch;
   let merchantHighestRegularPrice: number | null = null;
 
-  // Only wait on secondary merchant aggregator if at least one retailer did not match directly
-  if (!finalTargetMatch || !finalBestBuyMatch || !walmartMatch) {
+  const needsAggregator =
+    (wantsTarget && !finalTargetMatch) ||
+    (wantsBestBuy && !finalBestBuyMatch) ||
+    (wantsWalmart && !walmartMatch) ||
+    customStores.length > 0;
+
+  if (needsAggregator) {
     const merchantData = await merchantPromise;
     merchantHighestRegularPrice = merchantData.highestRegularPrice;
 
     const [retryTarget, retryBestBuy, retryWalmart] = await Promise.all([
-      !finalTargetMatch && merchantData.rawTargetLink
+      wantsTarget && !finalTargetMatch && merchantData.rawTargetLink
         ? resolveTargetLiveProduct(productTitle, amazonPrice, merchantData.rawTargetLink)
         : Promise.resolve(null),
-      !finalBestBuyMatch && merchantData.rawBestBuySku
+      wantsBestBuy && !finalBestBuyMatch && merchantData.rawBestBuySku
         ? resolveBestBuyLiveProduct(productTitle, amazonPrice, merchantData.rawBestBuySku)
         : Promise.resolve(null),
-      !walmartMatch && merchantData.rawWalmartLink
+      wantsWalmart && !walmartMatch && merchantData.rawWalmartLink
         ? resolveWalmartLiveProduct(merchantData.rawWalmartLink, productTitle)
         : Promise.resolve(null)
     ]);
@@ -915,13 +1013,16 @@ export async function compareRetailers(
     amazonPrice,
     amazonUrl,
     listPrice,
-    baselineMSRP
+    baselineMSRP,
+    allTimeHigh,
+    historicalAvg,
+    activeStores
   );
 }
 
 /**
- * Re-computes Amazon entry, MSRP fallback for unmatched stores, lowest-price badges,
- * and savings calculations cleanly using exact final Amazon + CCC historical numbers.
+ * Re-computes Amazon entry, MSRP fallback for unmatched stores, custom store entries,
+ * lowest-price badges, and savings calculations cleanly using exact final Amazon + CCC historical numbers.
  */
 export function finalizeRetailerComparisons(
   rawComparisons: RetailerPriceComparison[],
@@ -931,8 +1032,10 @@ export function finalizeRetailerComparisons(
   listPrice?: number | null,
   baselineMSRPInput?: number | null,
   allTimeHigh?: number | null,
-  historicalAvg?: number | null
+  historicalAvg?: number | null,
+  selectedStores?: string[]
 ): RetailerPriceComparison[] {
+  const activeStores = normalizeSelectedStores(selectedStores);
   const baselineMSRP = baselineMSRPInput && baselineMSRPInput > amazonPrice
     ? Number(baselineMSRPInput.toFixed(2))
     : determineBaselineMSRP(amazonPrice, listPrice, allTimeHigh, historicalAvg);
@@ -956,53 +1059,80 @@ export function finalizeRetailerComparisons(
     const isFallbackSearch = c.url.includes('/s?searchTerm=') || c.url.includes('/searchpage.jsp') || c.url.includes('walmart.com/search');
     if (isFallbackSearch) continue;
     if (typeof c.price === 'number' && amazonPrice > 50 && c.price < amazonPrice * 0.4) continue;
-    byRetailer.set(c.retailer, {
+    byRetailer.set(c.retailer.toLowerCase(), {
       ...c,
       isLowestPrice: false,
       verifiedLive: true
     });
   }
 
-  if (!byRetailer.has('Target')) {
-    byRetailer.set('Target', {
-      retailer: 'Target',
-      price: baselineMSRP,
-      regularPrice: baselineMSRP,
-      url: `https://www.target.com/s?searchTerm=${encodeURIComponent(cleanSearch)}`,
-      inStock: true,
-      isLowestPrice: false,
-      label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
-      verifiedLive: false
-    });
+  const orderedResultKeys: string[] = ['Amazon'];
+
+  for (const store of activeStores) {
+    const lower = store.toLowerCase();
+    if (lower === 'target' || lower === 'target.com') {
+      orderedResultKeys.push('target');
+      if (!byRetailer.has('target')) {
+        byRetailer.set('target', {
+          retailer: 'Target',
+          price: baselineMSRP,
+          regularPrice: baselineMSRP,
+          url: `https://www.target.com/s?searchTerm=${encodeURIComponent(cleanSearch)}`,
+          inStock: true,
+          isLowestPrice: false,
+          label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
+          verifiedLive: false
+        });
+      }
+    } else if (lower === 'best buy' || lower === 'bestbuy' || lower === 'bestbuy.com') {
+      orderedResultKeys.push('best buy');
+      if (!byRetailer.has('best buy')) {
+        byRetailer.set('best buy', {
+          retailer: 'Best Buy',
+          price: baselineMSRP,
+          regularPrice: baselineMSRP,
+          url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(cleanSearch)}&qp=condition_facet%3DCondition~New`,
+          inStock: true,
+          isLowestPrice: false,
+          label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
+          verifiedLive: false
+        });
+      }
+    } else if (lower === 'walmart' || lower === 'walmart.com') {
+      orderedResultKeys.push('walmart');
+      if (!byRetailer.has('walmart')) {
+        byRetailer.set('walmart', {
+          retailer: 'Walmart',
+          price: baselineMSRP,
+          regularPrice: baselineMSRP,
+          url: `https://www.walmart.com/search?q=${encodeURIComponent(cleanSearch)}`,
+          inStock: true,
+          isLowestPrice: false,
+          label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
+          verifiedLive: false
+        });
+      }
+    } else {
+      orderedResultKeys.push(lower);
+      if (!byRetailer.has(lower)) {
+        byRetailer.set(lower, {
+          retailer: store,
+          price: null,
+          regularPrice: null,
+          url: buildCustomStoreSearchUrl(store, cleanSearch),
+          inStock: true,
+          isLowestPrice: false,
+          label: 'Custom',
+          verifiedLive: false
+        });
+      }
+    }
   }
 
-  if (!byRetailer.has('Best Buy')) {
-    byRetailer.set('Best Buy', {
-      retailer: 'Best Buy',
-      price: baselineMSRP,
-      regularPrice: baselineMSRP,
-      url: `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(cleanSearch)}&qp=condition_facet%3DCondition~New`,
-      inStock: true,
-      isLowestPrice: false,
-      label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
-      verifiedLive: false
-    });
-  }
+  const comparisons = orderedResultKeys
+    .map(k => byRetailer.get(k))
+    .filter((c): c is InternalComparison => Boolean(c));
 
-  if (!byRetailer.has('Walmart')) {
-    byRetailer.set('Walmart', {
-      retailer: 'Walmart',
-      price: baselineMSRP,
-      regularPrice: baselineMSRP,
-      url: `https://www.walmart.com/search?q=${encodeURIComponent(cleanSearch)}`,
-      inStock: true,
-      isLowestPrice: false,
-      label: baselineMSRP > amazonPrice ? 'MSRP' : 'Standard',
-      verifiedLive: false
-    });
-  }
-
-  const comparisons = Array.from(byRetailer.values());
   const verifiedStores = comparisons.filter(c => c.verifiedLive && typeof c.price === 'number' && c.price > 0);
   const poolForMin = verifiedStores.length > 0
     ? verifiedStores
@@ -1025,8 +1155,5 @@ export function finalizeRetailerComparisons(
     });
   }
 
-  const order = ['Amazon', 'Target', 'Best Buy', 'Walmart'];
-  return comparisons
-    .sort((a, b) => order.indexOf(a.retailer) - order.indexOf(b.retailer))
-    .map(({ verifiedLive: _verifiedLive, ...rest }) => rest);
+  return comparisons.map(({ verifiedLive: _verifiedLive, ...rest }) => rest);
 }

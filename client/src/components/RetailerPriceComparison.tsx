@@ -11,36 +11,37 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
 
   // Retailer brand colors and badges
   const getRetailerMeta = (retailer: string) => {
-    switch (retailer) {
-      case 'Target':
-        return {
-          color: 'text-red-600 dark:text-red-400',
-          bg: 'bg-red-50 dark:bg-red-950/40',
-          border: 'border-red-200 dark:border-red-900/50',
-          dot: 'bg-red-500'
-        };
-      case 'Best Buy':
-        return {
-          color: 'text-yellow-600 dark:text-yellow-400',
-          bg: 'bg-yellow-50 dark:bg-yellow-950/40',
-          border: 'border-yellow-200 dark:border-yellow-900/50',
-          dot: 'bg-yellow-400'
-        };
-      case 'Walmart':
-        return {
-          color: 'text-blue-600 dark:text-blue-400',
-          bg: 'bg-blue-50 dark:bg-blue-950/40',
-          border: 'border-blue-200 dark:border-blue-900/50',
-          dot: 'bg-blue-500'
-        };
-      default: // Amazon
-        return {
-          color: 'text-amber-600 dark:text-amber-400',
-          bg: 'bg-amber-50 dark:bg-amber-950/40',
-          border: 'border-amber-200 dark:border-amber-900/50',
-          dot: 'bg-amber-500'
-        };
+    const r = retailer.toLowerCase();
+    if (r === 'target') {
+      return { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' };
     }
+    if (r === 'best buy') {
+      return { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-950/40', border: 'border-yellow-200 dark:border-yellow-900/50', dot: 'bg-yellow-400' };
+    }
+    if (r === 'walmart') {
+      return { color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', border: 'border-blue-200 dark:border-blue-900/50', dot: 'bg-blue-500' };
+    }
+    if (r === 'amazon') {
+      return { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', border: 'border-amber-200 dark:border-amber-900/50', dot: 'bg-amber-500' };
+    }
+    if (r === 'costco' || r === 'gamestop') {
+      return { color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40', border: 'border-rose-200 dark:border-rose-900/50', dot: 'bg-rose-500' };
+    }
+    if (r.includes('b&h') || r === 'micro center') {
+      return { color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40', border: 'border-sky-200 dark:border-sky-900/50', dot: 'bg-sky-500' };
+    }
+    if (r === 'newegg') {
+      return { color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/40', border: 'border-orange-200 dark:border-orange-900/50', dot: 'bg-orange-500' };
+    }
+    if (r === 'ebay') {
+      return { color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40', border: 'border-violet-200 dark:border-violet-900/50', dot: 'bg-violet-500' };
+    }
+    return {
+      color: 'text-teal-600 dark:text-teal-400',
+      bg: 'bg-teal-50 dark:bg-teal-950/40',
+      border: 'border-teal-200 dark:border-teal-900/50',
+      dot: 'bg-teal-500'
+    };
   };
 
   const lowest = comparisons.find(c => c.isLowestPrice);

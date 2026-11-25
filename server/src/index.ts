@@ -46,7 +46,7 @@ function clampThreshold(raw: unknown): number {
 // Single Product Vetting
 app.post('/api/vet-single', async (req: Request, res: Response) => {
   try {
-    const { input, threshold = 12 } = req.body || {};
+    const { input, threshold = 12, stores } = req.body || {};
     if (!isValidProductInput(input)) {
       res.status(400).json({
         success: false,
@@ -55,7 +55,8 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
       return;
     }
 
-    const product = await vetSingleProduct(input.trim(), clampThreshold(threshold));
+    const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+    const product = await vetSingleProduct(input.trim(), clampThreshold(threshold), undefined, 0, 1, selectedStores);
     res.json({
       success: true,
       product
@@ -72,7 +73,7 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
 // Multi-Item Wishlist Vetting (Synchronous JSON)
 app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
   try {
-    const { items, threshold = 12 } = req.body || {};
+    const { items, threshold = 12, stores } = req.body || {};
     if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({ success: false, error: 'Please provide at least one product to check.' });
       return;
@@ -84,7 +85,8 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
       return;
     }
 
-    const products = await processQueueWithConcurrency(cleanItems, clampThreshold(threshold), undefined, 2);
+    const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+    const products = await processQueueWithConcurrency(cleanItems, clampThreshold(threshold), undefined, 2, selectedStores);
     res.json({
       success: true,
       count: products.length,
@@ -101,7 +103,8 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
 
 // Real-Time SSE Stream for Wishlist / Bulk Vetting
 app.post('/api/vet-stream', async (req: Request, res: Response) => {
-  const { items, threshold = 12 } = req.body || {};
+  const { items, threshold = 12, stores } = req.body || {};
+  const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
 
   if (!Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: 'Please provide at least one product to check.' });
@@ -146,7 +149,8 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
       cleanItems,
       clampThreshold(threshold),
       (event) => sendEvent(event),
-      2
+      2,
+      selectedStores
     );
 
     if (cleanItems.length > 1 && products.length > 0) {

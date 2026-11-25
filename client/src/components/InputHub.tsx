@@ -1,8 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Search, ListPlus, ExternalLink, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { Search, ListPlus, ExternalLink, Plus, Trash2, ArrowRight, Store, ChevronDown, Check, X } from 'lucide-react';
 
 const SHOULD_AUTO_FOCUS = typeof window !== 'undefined' && !Capacitor.isNativePlatform() && window.innerWidth >= 640;
+
+const PRESET_STORES = [
+  { name: 'Target', dot: 'bg-red-500' },
+  { name: 'Best Buy', dot: 'bg-yellow-400' },
+  { name: 'Walmart', dot: 'bg-blue-500' },
+  { name: 'Costco', dot: 'bg-rose-500' },
+  { name: 'B&H Photo', dot: 'bg-sky-500' },
+  { name: 'Newegg', dot: 'bg-orange-500' },
+  { name: 'GameStop', dot: 'bg-rose-400' },
+  { name: 'Micro Center', dot: 'bg-sky-400' },
+  { name: 'Apple', dot: 'bg-slate-400' },
+  { name: 'eBay', dot: 'bg-violet-500' }
+];
 
 export type InputMode = 'single' | 'wishlist' | 'url';
 
@@ -11,15 +24,55 @@ interface InputHubProps {
   onScanWishlist: (items: string[]) => void;
   onImportWishlistUrl: (url: string) => void;
   isLoading: boolean;
+  selectedStores: string[];
+  onChangeStores: (stores: string[]) => void;
 }
 
 export const InputHub: React.FC<InputHubProps> = ({
   onScanSingle,
   onScanWishlist,
   onImportWishlistUrl,
-  isLoading
+  isLoading,
+  selectedStores,
+  onChangeStores
 }) => {
   const [activeTab, setActiveTab] = useState<InputMode>('single');
+  const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const [customStoreInput, setCustomStoreInput] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setStoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleStore = (storeName: string) => {
+    const exists = selectedStores.some(s => s.toLowerCase() === storeName.toLowerCase());
+    if (exists) {
+      if (selectedStores.length <= 1) return; // keep at least 1 store
+      onChangeStores(selectedStores.filter(s => s.toLowerCase() !== storeName.toLowerCase()));
+    } else {
+      onChangeStores([...selectedStores, storeName]);
+    }
+  };
+
+  const handleAddCustomStore = () => {
+    const cleaned = customStoreInput
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .replace(/\/.*$/, '');
+    if (!cleaned || cleaned.toLowerCase() === 'amazon') return;
+    if (!selectedStores.some(s => s.toLowerCase() === cleaned.toLowerCase())) {
+      onChangeStores([...selectedStores, cleaned]);
+    }
+    setCustomStoreInput('');
+  };
 
   // Tab 1 state
   const [singleInput, setSingleInput] = useState('');
@@ -333,6 +386,114 @@ export const InputHub: React.FC<InputHubProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        )}
+      </div>
+
+      {/* Store Comparison Selector Dropdown + Custom Store/Website Input */}
+      <div ref={dropdownRef} className="relative">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Compare with:</span>
+            </span>
+            <div className="flex items-center flex-wrap gap-1.5">
+              {selectedStores.map((store) => (
+                <span
+                  key={store}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                >
+                  <span>{store}</span>
+                  {selectedStores.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleStore(store)}
+                      className="text-slate-400 hover:text-rose-500 transition-colors"
+                      aria-label={`Remove ${store}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setStoreMenuOpen(o => !o)}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors flex-shrink-0"
+          >
+            <span>Stores ({selectedStores.length})</span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${storeMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {storeMenuOpen && (
+          <div className="mt-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl space-y-3 z-30">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Select Stores to Compare (Amazon Always Included)
+              </span>
+              <button
+                type="button"
+                onClick={() => onChangeStores(['Target', 'Best Buy', 'Walmart'])}
+                className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                Reset Default
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+              {PRESET_STORES.map((store) => {
+                const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
+                return (
+                  <button
+                    key={store.name}
+                    type="button"
+                    onClick={() => toggleStore(store.name)}
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium border transition-all ${
+                      isSelected
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-500/60 text-emerald-900 dark:text-emerald-200'
+                        : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
+                      <span className="truncate">{store.name}</span>
+                    </span>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <input
+                type="text"
+                value={customStoreInput}
+                onChange={(e) => setCustomStoreInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustomStore();
+                  }
+                }}
+                placeholder="Add custom store or site (e.g. adorama.com, Staples)..."
+                className="flex-1 bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomStore}
+                disabled={!customStoreInput.trim()}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-colors flex-shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

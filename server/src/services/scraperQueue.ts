@@ -44,7 +44,8 @@ export async function vetSingleProduct(
   thresholdPercent: number = 12,
   onProgress?: ProgressCallback,
   itemIndex: number = 0,
-  totalItems: number = 1
+  totalItems: number = 1,
+  selectedStores?: string[]
 ): Promise<VettedProduct> {
   const notify = (step: number, stage: ScrapeProgressEvent['stage'], message: string, asin?: string, product?: VettedProduct) => {
     if (onProgress) {
@@ -78,7 +79,7 @@ export async function vetSingleProduct(
     const amazonPromise = scrapeAmazonProduct(asin);
     const cccPromise = fetchCccPriceHistory(asin, resolved.resolvedPrice, null);
     const earlyComparePromise: Promise<RetailerPriceComparison[] | null> = earlyTitle
-      ? compareRetailers(earlyTitle, resolved.resolvedPrice || 0, amazonUrl).catch(() => null)
+      ? compareRetailers(earlyTitle, resolved.resolvedPrice || 0, amazonUrl, null, null, null, selectedStores).catch(() => null)
       : Promise.resolve(null);
 
     const amazonData = await amazonPromise;
@@ -181,7 +182,8 @@ export async function vetSingleProduct(
           amazonData.listPrice,
           undefined,
           historical?.allTimeHigh?.price,
-          historical?.historicalAverage
+          historical?.historicalAverage,
+          selectedStores
         );
       } else {
         retailerComparisons = await compareRetailers(
@@ -190,7 +192,8 @@ export async function vetSingleProduct(
           amazonUrl,
           amazonData.listPrice,
           historical?.allTimeHigh?.price,
-          historical?.historicalAverage
+          historical?.historicalAverage,
+          selectedStores
         );
       }
     } catch (retailerErr) {
@@ -237,7 +240,8 @@ export async function processQueueWithConcurrency(
   inputs: string[],
   thresholdPercent: number = 12,
   onProgress?: ProgressCallback,
-  concurrencyLimit: number = 2
+  concurrencyLimit: number = 2,
+  selectedStores?: string[]
 ): Promise<VettedProduct[]> {
   const results: VettedProduct[] = new Array(inputs.length);
   let currentIndex = 0;
@@ -253,7 +257,8 @@ export async function processQueueWithConcurrency(
           thresholdPercent,
           onProgress,
           idx,
-          inputs.length
+          inputs.length,
+          selectedStores
         );
         results[idx] = product;
       } catch (err: any) {

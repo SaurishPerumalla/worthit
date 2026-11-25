@@ -24,6 +24,26 @@ export const App: React.FC = () => {
   const [strictnessThreshold, setStrictnessThreshold] = useState<number>(12);
   const [showApprovedOnly, setShowApprovedOnly] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedStores, setSelectedStores] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('dealchaser_stores');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return ['Target', 'Best Buy', 'Walmart'];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dealchaser_stores', JSON.stringify(selectedStores));
+    } catch {
+      // ignore storage errors
+    }
+  }, [selectedStores]);
 
   // Sync dark class on root document and persist in localStorage
   useEffect(() => {
@@ -92,7 +112,7 @@ export const App: React.FC = () => {
       const res = await fetch(apiUrl('/api/vet-single'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: items[0], threshold: strictnessThreshold })
+        body: JSON.stringify({ input: items[0], threshold: strictnessThreshold, stores: selectedStores })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success || !data.product) {
@@ -116,7 +136,7 @@ export const App: React.FC = () => {
     const res = await fetch(apiUrl('/api/vet-wishlist'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, threshold: strictnessThreshold })
+      body: JSON.stringify({ items, threshold: strictnessThreshold, stores: selectedStores })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success || !Array.isArray(data.products)) {
@@ -165,7 +185,7 @@ export const App: React.FC = () => {
       const response = await fetch(apiUrl('/api/vet-stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: validItems, threshold: strictnessThreshold })
+        body: JSON.stringify({ items: validItems, threshold: strictnessThreshold, stores: selectedStores })
       });
 
       if (!response.ok) {
@@ -360,6 +380,8 @@ export const App: React.FC = () => {
           onScanWishlist={handleScanWishlist}
           onImportWishlistUrl={handleImportWishlistUrl}
           isLoading={isLoading}
+          selectedStores={selectedStores}
+          onChangeStores={setSelectedStores}
         />
 
         {/* Real-time Progress Bar */}

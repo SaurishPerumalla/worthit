@@ -1,5 +1,5 @@
 export interface RetailerPriceComparison {
-  retailer: 'Amazon' | 'Best Buy' | 'Target' | 'Walmart';
+  retailer: string;
   price: number | null;
   regularPrice?: number | null;
   url: string;
