@@ -304,14 +304,29 @@ export function normalizeStoreIdentity(rawStore: string): StoreIdentity {
 }
 
 export function simplifyProductQueryForStore(query: string): string {
-  return query
+  // 1. Strip HTML entities, trademarks, parentheticals, and common Amazon spec-sheet suffixes
+  let cleaned = query
     .replace(/&#160;|&nbsp;/gi, ' ')
     .replace(/[™®©\u00a0]/g, ' ')
     .replace(/\([^)]*\)/g, ' ')
     .replace(/,\s*(?:USA|US|International)\s*(?:Version|Model|Edition)?/gi, ' ')
-    .replace(/\b(unlocked|gsm|smartwatch|system|console|with|for)\b/gi, ' ')
+    .replace(/\b\d+\s*(?:hr|hrs|hour|hours|h)\s*(?:battery(?:\s*life)?|playtime)\b/gi, ' ')
+    .replace(/\b(?:active\s+)?noise[\s-]*(?:canceling|cancelling|cancellation)\b|\banc\b/gi, ' ')
+    .replace(/\b(?:over-ear|on-ear|in-ear|true\s+wireless|wireless|bluetooth|spatial\s+audio|lossless\s+audio|usb-c|fast\s+charging|built-in\s+mic)\b/gi, ' ')
+    .replace(/\b(?:unlocked|gsm|smartwatch|system|console|headphones|earbuds|with|for)\b/gi, ' ')
+    .replace(/\s+[-–—]\s+.*$/, '') // strip trailing "- Black", "- Sandstone", "- 40H Battery..."
+    .replace(/[,|/]+/g, ' ')
+    .replace(/\s+-\s+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // 2. Cap ultra-long product titles to core 5 words so store search bars (like Newegg/BestBuy) match broadly
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length > 5) {
+    cleaned = words.slice(0, 5).join(' ');
+  }
+
+  return cleaned || query.replace(/\s+/g, ' ').trim();
 }
 
 function isPricePlausible(price: number, amazonPrice: number): boolean {
@@ -331,8 +346,19 @@ function parseUsdNumber(raw: unknown): number | null {
   return Number.isFinite(val) && val > 0 ? Number(val.toFixed(2)) : null;
 }
 
+const SERPER_CACHE_TTL_MS = 30 * 60 * 1000;
+const serperShoppingCache = new Map<string, { expiresAt: number; offers: Map<string, InternalComparison> }>();
+const serperSiteCache = new Map<string, { expiresAt: number; comparison: InternalComparison | null }>();
+
+function pruneMapIfNeeded<K, V>(map: Map<K, V>, maxSize: number) {
+  if (map.size > maxSize) {
+    const firstKey = map.keys().next().value;
+    if (firstKey !== undefined) map.delete(firstKey);
+  }
+}
+
 /**
- * Fetches live multi-store Google Shopping results via Serper.dev (1 API credit for all stores).
+ * Fetches live multi-store Google Shopping results via Serper.dev (1 API credit for all stores, cached 30m).
  * Keyed by canonical store key (e.g. 'home depot', 'lowes', 'costco', 'newegg', 'gamestop').
  */
 export async function fetchSerperShoppingOffers(
@@ -344,8 +370,14 @@ export async function fetchSerperShoppingOffers(
   const apiKey = process.env.SERPER_API_KEY?.trim();
   if (!apiKey) return results;
 
+  const cleanQ = simplifyProductQueryForStore(targetQuery);
+  const cacheKey = cleanQ.toLowerCase();
+  const cached = serperShoppingCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.offers;
+  }
+
   try {
-    const cleanQ = simplifyProductQueryForStore(targetQuery);
     const res = await fetchWithTimeout('https://google.serper.dev/shopping', {
       method: 'POST',
       headers: {
@@ -403,14 +435,19 @@ export async function fetchSerperShoppingOffers(
     // Fail softly if Serper times out or quota is exhausted
   }
 
+  if (results.size > 0) {
+    serperShoppingCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, offers: results });
+    pruneMapIfNeeded(serperShoppingCache, 150);
+  }
+
   return results;
 }
 
 /**
  * Queries Google Web Search via Serper.dev for `site:<domain> <product>` as a universal
- * fallback for any custom store website not listed in Google Shopping.
+ * fallback for any custom store website not listed in Google Shopping (cached 30m).
  */
-async function fetchSerperSiteSearch(
+export async function fetchSerperSiteSearch(
   identity: StoreIdentity,
   cleanQ: string,
   targetQuery: string,
@@ -419,6 +456,12 @@ async function fetchSerperSiteSearch(
 ): Promise<InternalComparison | null> {
   const apiKey = process.env.SERPER_API_KEY?.trim();
   if (!apiKey) return null;
+
+  const cacheKey = `${identity.domain}:${cleanQ.toLowerCase()}`;
+  const cached = serperSiteCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.comparison;
+  }
 
   try {
     const res = await fetchWithTimeout('https://google.serper.dev/search', {
@@ -473,7 +516,7 @@ async function fetchSerperSiteSearch(
     if (!best) return null;
 
     if (best.price !== null) {
-      return {
+      const hit: InternalComparison = {
         retailer: identity.displayName,
         price: best.price,
         regularPrice: null,
@@ -483,6 +526,9 @@ async function fetchSerperSiteSearch(
         label: best.inStock ? `${identity.displayName} Price` : 'Out of Stock',
         verifiedLive: true
       };
+      serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: hit });
+      pruneMapIfNeeded(serperSiteCache, 200);
+      return hit;
     }
 
     // If Google returned the exact PDP link without a snippet price, try reading the PDP directly
@@ -500,7 +546,11 @@ async function fetchSerperSiteSearch(
           amazonPrice,
           scoreStrictMatch
         );
-        if (comparison) return comparison;
+        if (comparison) {
+          serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison });
+          pruneMapIfNeeded(serperSiteCache, 200);
+          return comparison;
+        }
       }
     } catch {
       // ignore
@@ -509,6 +559,8 @@ async function fetchSerperSiteSearch(
     // ignore
   }
 
+  serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: null });
+  pruneMapIfNeeded(serperSiteCache, 200);
   return null;
 }
 
@@ -1598,17 +1650,14 @@ export async function resolveUniversalCustomStore(
   amazonPrice: number,
   scoreStrictMatch: ScoreMatcherFn,
   dekuOffers?: Map<string, InternalComparison>,
-  serperOffers?: Map<string, InternalComparison>
+  options?: { allowSerperSite?: boolean }
 ): Promise<InternalComparison> {
   const cleanQ = simplifyProductQueryForStore(targetQuery);
   const fallbackSearchUrl = identity.buildSearchUrl(cleanQ);
 
-  // 0. Check pre-fetched DekuDeals or Serper Google Shopping cross-store tables
+  // 0. Check pre-fetched DekuDeals cross-store table (free)
   const dekuHit = dekuOffers?.get(identity.canonicalKey);
   if (dekuHit) return dekuHit;
-
-  const serperHit = serperOffers?.get(identity.canonicalKey);
-  if (serperHit) return serperHit;
 
   // 1. Specialized high-accuracy store resolvers
   if (identity.canonicalKey === 'gamestop') {
@@ -1642,11 +1691,7 @@ export async function resolveUniversalCustomStore(
   let sawBlocked = false;
   let sawReadableSearchPage = false;
 
-  // 1b. Serper.dev targeted `site:<domain>` fallback (fast, bypasses WAFs on arbitrary websites)
-  const serperSiteHit = await fetchSerperSiteSearch(identity, cleanQ, targetQuery, amazonPrice, scoreStrictMatch);
-  if (serperSiteHit) return serperSiteHit;
-
-  // 2. Concurrent Shopify + WooCommerce fast platform probes
+  // 2. Concurrent Shopify + WooCommerce fast platform probes (free)
   const [shopifyHit, wooHit] = await Promise.all([
     tryShopifyStoreSearch(identity, cleanQ, targetQuery, amazonPrice, scoreStrictMatch),
     tryWooCommerceStoreSearch(identity, cleanQ, targetQuery, amazonPrice, scoreStrictMatch)
@@ -1857,6 +1902,12 @@ export async function resolveUniversalCustomStore(
     }
   } catch {
     // ignore
+  }
+
+  // 6. Paid Serper `site:<domain>` ONLY as last resort if all free scrapers & Jina failed
+  if (options?.allowSerperSite !== false) {
+    const serperSiteHit = await fetchSerperSiteSearch(identity, cleanQ, targetQuery, amazonPrice, scoreStrictMatch);
+    if (serperSiteHit) return serperSiteHit;
   }
 
   return {

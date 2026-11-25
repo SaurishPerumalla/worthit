@@ -227,7 +227,7 @@ export async function vetSingleProduct(
       try {
         const primaryCounts = countFoundStores(retailerComparisons);
         const altEvaluations = await Promise.all(
-          resolved.alternateMatches.slice(0, 4).map(async (alt, idx) => {
+          resolved.alternateMatches.slice(0, 2).map(async (alt, idx) => {
             const altUrl = `https://www.amazon.com/dp/${alt.asin}`;
             const altComps = await compareRetailers(
               alt.title,
@@ -236,7 +236,8 @@ export async function vetSingleProduct(
               null,
               null,
               null,
-              selectedStores
+              selectedStores,
+              { allowSerper: true, allowSerperSite: false }
             ).catch(() => null);
             const counts = countFoundStores(altComps || undefined);
             return { alt, idx, altUrl, altComps, ...counts };

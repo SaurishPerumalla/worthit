@@ -4,9 +4,11 @@ import {
   InternalComparison,
   StoreIdentity,
   normalizeStoreIdentity,
+  simplifyProductQueryForStore,
   resolveTargetRedSkySearch,
   fetchDekuDealsPrices,
   fetchSerperShoppingOffers,
+  fetchSerperSiteSearch,
   resolveUniversalCustomStore
 } from './customStoreResolver.js';
 
@@ -114,11 +116,7 @@ function normalizeText(text: string): string {
  * preserving critical tier specs (cellular, gps, size, storage, edition).
  */
 function cleanQueryForRetailers(query: string): string {
-  return normalizeText(query)
-    .replace(/\b(unlocked|gsm|renewed|refurbished|smartwatch|with|for)\b/gi, '')
-    .replace(/applecare\+?/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return simplifyProductQueryForStore(query);
 }
 
 /**
@@ -907,7 +905,8 @@ export async function compareRetailers(
   listPrice?: number | null,
   allTimeHigh?: number | null,
   historicalAvg?: number | null,
-  selectedStores?: string[]
+  selectedStores?: string[],
+  options?: { allowSerper?: boolean; allowSerperSite?: boolean }
 ): Promise<RetailerPriceComparison[]> {
   const activeIdentities = getDeduplicatedStoreIdentities(selectedStores);
   const activeKeys = new Set(activeIdentities.map(s => s.canonicalKey));
@@ -929,7 +928,7 @@ export async function compareRetailers(
     verifiedLive: true
   });
 
-  // 2. Run aggregator, DekuDeals (for gaming items), Target/Best Buy/Walmart, AND custom stores in parallel!
+  // 2. Run FREE scrapers first (aggregator, DekuDeals, Target/Best Buy/Walmart, and custom stores without paid Serper)
   const lowerTitle = productTitle.toLowerCase();
   const wantsBundle = /\b(bundle|pack|kit|combo|includes|with\s+(?:mario|zelda|game))\b|\s\+\s(?!cellular\b)/i.test(lowerTitle);
 
@@ -946,25 +945,25 @@ export async function compareRetailers(
 
   const merchantPromise = fetchAggregatedMerchants(productTitle, amazonPrice);
   const dekuPromise = fetchDekuDealsPrices(productTitle, amazonPrice, scoreStrictRetailerMatch);
-  const serperPromise = fetchSerperShoppingOffers(productTitle, amazonPrice, scoreStrictRetailerMatch);
 
   const customStoresPromise = (async (): Promise<InternalComparison[]> => {
     if (customIdentities.length === 0) return [];
-    const [dekuOffers, serperOffers] = await Promise.all([dekuPromise, serperPromise]);
+    const dekuOffers = await dekuPromise;
     return await Promise.all(
       customIdentities.map((identity) =>
-        resolveUniversalCustomStore(identity, productTitle, amazonPrice, scoreStrictRetailerMatch, dekuOffers, serperOffers)
+        resolveUniversalCustomStore(identity, productTitle, amazonPrice, scoreStrictRetailerMatch, dekuOffers, {
+          allowSerperSite: false
+        })
       )
     );
   })();
 
-  const [targetMatch, bestBuyMatch, initialWalmartMatch, customResults, dekuOffers, serperOffers] = await Promise.all([
+  const [targetMatch, bestBuyMatch, initialWalmartMatch, customResults, dekuOffers] = await Promise.all([
     wantsTarget ? resolveTargetLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
     wantsBestBuy ? resolveBestBuyLiveProduct(productTitle, amazonPrice) : Promise.resolve(null),
     walmartSeedUrl ? resolveWalmartLiveProduct(walmartSeedUrl, productTitle) : Promise.resolve(null),
     customStoresPromise,
-    dekuPromise,
-    serperPromise
+    dekuPromise
   ]);
 
   let finalTargetMatch = targetMatch;
@@ -998,15 +997,62 @@ export async function compareRetailers(
     if (retryWalmart) walmartMatch = retryWalmart;
   }
 
-  // Fallback to live DekuDeals or Serper Google Shopping pricing for Target / Best Buy / Walmart
-  if (wantsTarget && !finalTargetMatch) {
-    finalTargetMatch = dekuOffers.get('target') || serperOffers.get('target') || null;
+  // Fallback to free live DekuDeals pricing for Target / Best Buy / Walmart
+  if (wantsTarget && !finalTargetMatch && dekuOffers.has('target')) {
+    finalTargetMatch = dekuOffers.get('target') || null;
   }
-  if (wantsBestBuy && !finalBestBuyMatch) {
-    finalBestBuyMatch = dekuOffers.get('best buy') || serperOffers.get('best buy') || null;
+  if (wantsBestBuy && !finalBestBuyMatch && dekuOffers.has('best buy')) {
+    finalBestBuyMatch = dekuOffers.get('best buy') || null;
   }
-  if (wantsWalmart && !walmartMatch) {
-    walmartMatch = dekuOffers.get('walmart') || serperOffers.get('walmart') || null;
+  if (wantsWalmart && !walmartMatch && dekuOffers.has('walmart')) {
+    walmartMatch = dekuOffers.get('walmart') || null;
+  }
+
+  // 2b. ONLY invoke paid Serper.dev API if 1+ selected stores are STILL missing a live price!
+  const missingCustomIndices = customResults
+    .map((cr, idx) => ({ cr, idx, id: customIdentities[idx] }))
+    .filter(({ cr, id }) => cr.price === null && id.canonicalKey !== 'apple');
+
+  const needsSerper =
+    options?.allowSerper !== false &&
+    Boolean(process.env.SERPER_API_KEY?.trim()) &&
+    ((wantsTarget && !finalTargetMatch) ||
+      (wantsBestBuy && !finalBestBuyMatch) ||
+      (wantsWalmart && !walmartMatch) ||
+      missingCustomIndices.length > 0);
+
+  if (needsSerper) {
+    const serperOffers = await fetchSerperShoppingOffers(productTitle, amazonPrice, scoreStrictRetailerMatch);
+    if (wantsTarget && !finalTargetMatch && serperOffers.has('target')) {
+      finalTargetMatch = serperOffers.get('target') || null;
+    }
+    if (wantsBestBuy && !finalBestBuyMatch && serperOffers.has('best buy')) {
+      finalBestBuyMatch = serperOffers.get('best buy') || null;
+    }
+    if (wantsWalmart && !walmartMatch && serperOffers.has('walmart')) {
+      walmartMatch = serperOffers.get('walmart') || null;
+    }
+
+    const stillMissing = missingCustomIndices.filter(({ id }) => {
+      const hit = serperOffers.get(id.canonicalKey);
+      return !hit;
+    });
+
+    for (const { idx, id } of missingCustomIndices) {
+      const hit = serperOffers.get(id.canonicalKey);
+      if (hit) customResults[idx] = hit;
+    }
+
+    // Targeted `site:<domain>` query ONLY for custom stores not found in Google Shopping
+    if (options?.allowSerperSite !== false && stillMissing.length > 0) {
+      const cleanQ = simplifyProductQueryForStore(productTitle);
+      await Promise.all(
+        stillMissing.map(async ({ idx, id }) => {
+          const siteHit = await fetchSerperSiteSearch(id, cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch);
+          if (siteHit) customResults[idx] = siteHit;
+        })
+      );
+    }
   }
 
   if (finalTargetMatch) comparisons.push(finalTargetMatch);
