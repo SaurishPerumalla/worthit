@@ -34,8 +34,8 @@ export const InputHub: React.FC<InputHubProps> = ({
 
   const handleSingleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!singleInput.trim() || isLoading) return;
-    onScanSingle(singleInput.trim());
+    if (isLoading) return;
+    onScanSingle(singleInput);
   };
 
   const handleWishlistSubmit = (e: React.FormEvent) => {
@@ -52,15 +52,13 @@ export const InputHub: React.FC<InputHubProps> = ({
       itemsToScan = stagingList;
     }
 
-    if (itemsToScan.length > 0) {
-      onScanWishlist(itemsToScan);
-    }
+    onScanWishlist(itemsToScan);
   };
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wishlistUrl.trim() || isLoading) return;
-    onImportWishlistUrl(wishlistUrl.trim());
+    if (isLoading) return;
+    onImportWishlistUrl(wishlistUrl);
   };
 
   const handleAddToStaging = () => {

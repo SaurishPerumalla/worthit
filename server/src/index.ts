@@ -31,16 +31,31 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
+function isValidProductInput(raw: unknown): raw is string {
+  if (typeof raw !== 'string') return false;
+  const trimmed = raw.trim();
+  return trimmed.length >= 2 && /[a-zA-Z0-9]/.test(trimmed);
+}
+
+function clampThreshold(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 12;
+  return Math.min(90, Math.max(1, n));
+}
+
 // Single Product Vetting
 app.post('/api/vet-single', async (req: Request, res: Response) => {
   try {
-    const { input, threshold = 12 } = req.body;
-    if (!input || typeof input !== 'string') {
-      res.status(400).json({ success: false, error: 'Valid input string (URL, ASIN, or name) is required' });
+    const { input, threshold = 12 } = req.body || {};
+    if (!isValidProductInput(input)) {
+      res.status(400).json({
+        success: false,
+        error: 'Please enter a valid product name (at least 2 characters), Amazon link, or ASIN.'
+      });
       return;
     }
 
-    const product = await vetSingleProduct(input, Number(threshold));
+    const product = await vetSingleProduct(input.trim(), clampThreshold(threshold));
     res.json({
       success: true,
       product
@@ -57,19 +72,19 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
 // Multi-Item Wishlist Vetting (Synchronous JSON)
 app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
   try {
-    const { items, threshold = 12 } = req.body;
+    const { items, threshold = 12 } = req.body || {};
     if (!Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ success: false, error: 'Array of items is required' });
+      res.status(400).json({ success: false, error: 'Please provide at least one product to check.' });
       return;
     }
 
-    const cleanItems = items.map((i: any) => String(i).trim()).filter(Boolean);
+    const cleanItems = items.map((i: any) => String(i ?? '').trim()).filter(isValidProductInput);
     if (cleanItems.length === 0) {
-      res.status(400).json({ success: false, error: 'No valid non-empty items provided' });
+      res.status(400).json({ success: false, error: 'No valid non-empty product names, links, or ASINs were provided.' });
       return;
     }
 
-    const products = await processQueueWithConcurrency(cleanItems, Number(threshold), undefined, 2);
+    const products = await processQueueWithConcurrency(cleanItems, clampThreshold(threshold), undefined, 2);
     res.json({
       success: true,
       count: products.length,
@@ -86,23 +101,37 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
 
 // Real-Time SSE Stream for Wishlist / Bulk Vetting
 app.post('/api/vet-stream', async (req: Request, res: Response) => {
-  const { items, threshold = 12 } = req.body;
+  const { items, threshold = 12 } = req.body || {};
 
   if (!Array.isArray(items) || items.length === 0) {
-    res.status(400).json({ error: 'Array of items is required' });
+    res.status(400).json({ error: 'Please provide at least one product to check.' });
     return;
   }
 
-  const cleanItems = items.map((i: any) => String(i).trim()).filter(Boolean);
+  const cleanItems = items.map((i: any) => String(i ?? '').trim()).filter(isValidProductInput);
+  if (cleanItems.length === 0) {
+    res.status(400).json({ error: 'Please enter a valid product name (at least 2 characters), Amazon link, or ASIN.' });
+    return;
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
   const sendEvent = (event: ScrapeProgressEvent) => {
-    res.write(`data: ${JSON.stringify(event)}\n\n`);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
   };
+
+  // Keep SSE connection alive across mobile Safari / cloud proxies
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(': keepalive\n\n');
+    }
+  }, 12000);
 
   try {
     sendEvent({
@@ -115,7 +144,7 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
 
     const products = await processQueueWithConcurrency(
       cleanItems,
-      Number(threshold),
+      clampThreshold(threshold),
       (event) => sendEvent(event),
       2
     );
@@ -130,9 +159,13 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
       });
     }
 
-    res.write('event: complete\ndata: {"status":"complete"}\n\n');
-    res.end();
+    clearInterval(heartbeat);
+    if (!res.writableEnded) {
+      res.write('event: complete\ndata: {"status":"complete"}\n\n');
+      res.end();
+    }
   } catch (err: any) {
+    clearInterval(heartbeat);
     console.error('Error in /api/vet-stream:', err);
     sendEvent({
       step: 4,
@@ -140,7 +173,9 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
       stage: 'error',
       message: err.message || 'Stream processing encountered an error'
     });
-    res.end();
+    if (!res.writableEnded) {
+      res.end();
+    }
   }
 });
 
