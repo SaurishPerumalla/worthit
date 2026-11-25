@@ -26,7 +26,7 @@ export const DealChaserLogo: React.FC<LogoProps> = ({ className = '', size = 'md
 
   return (
     <div
-      className={`relative flex items-center justify-center bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-[2px] shadow-md shadow-emerald-500/20 group transition-all duration-200 ${sizeMap[size]} ${className}`}
+      className={`relative flex items-center justify-center bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-[2px] shadow-md shadow-emerald-500/25 group transition-all duration-300 hover:scale-105 animate-glow-pulse ${sizeMap[size]} ${className}`}
     >
       <div className={`h-full w-full bg-white dark:bg-slate-950 ${innerRadius[size]} flex items-center justify-center p-1 transition-colors`}>
         <svg

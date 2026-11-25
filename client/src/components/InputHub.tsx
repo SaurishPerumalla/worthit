@@ -128,7 +128,7 @@ export const InputHub: React.FC<InputHubProps> = ({
     <div className="space-y-3">
       {/* Tile 1: Single Item */}
       <div
-        className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+        className={`animate-fade-up rounded-2xl border transition-all duration-200 overflow-hidden ${
           activeTab === 'single'
             ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
             : 'bg-white/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -158,13 +158,18 @@ export const InputHub: React.FC<InputHubProps> = ({
               </span>
             </div>
           </div>
-          <div
-            className={`h-3 w-3 rounded-full flex-shrink-0 ml-2 transition-all ${
-              activeTab === 'single'
-                ? 'bg-emerald-500 ring-4 ring-emerald-500/20'
-                : 'border-2 border-slate-300 dark:border-slate-700'
-            }`}
-          />
+          <div className="relative flex-shrink-0 ml-2">
+            {activeTab === 'single' && (
+              <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-50" />
+            )}
+            <div
+              className={`relative h-3 w-3 rounded-full transition-all ${
+                activeTab === 'single'
+                  ? 'bg-emerald-500 ring-4 ring-emerald-500/20'
+                  : 'border-2 border-slate-300 dark:border-slate-700'
+              }`}
+            />
+          </div>
         </button>
 
         {activeTab === 'single' && (
@@ -186,10 +191,13 @@ export const InputHub: React.FC<InputHubProps> = ({
                 <button
                   type="submit"
                   disabled={!singleInput.trim() || isLoading}
-                  className="group press-scale py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-emerald-700/20 whitespace-nowrap flex-shrink-0"
+                  className="relative overflow-hidden group press-scale py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-emerald-700/20 whitespace-nowrap flex-shrink-0"
                 >
-                  <span>{isLoading ? 'Checking...' : 'Check Deal'}</span>
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  {singleInput.trim() && !isLoading && (
+                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-shimmer-sweep" />
+                  )}
+                  <span className="relative">{isLoading ? 'Checking...' : 'Check Deal'}</span>
+                  <ArrowRight className="relative h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </button>
               </div>
             </form>
@@ -199,7 +207,8 @@ export const InputHub: React.FC<InputHubProps> = ({
 
       {/* Tile 2: Wishlist Builder */}
       <div
-        className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+        style={{ animationDelay: '70ms' }}
+        className={`animate-fade-up rounded-2xl border transition-all duration-200 overflow-hidden ${
           activeTab === 'wishlist'
             ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
             : 'bg-white/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -321,7 +330,8 @@ export const InputHub: React.FC<InputHubProps> = ({
 
       {/* Tile 3: Public Wishlist URL */}
       <div
-        className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+        style={{ animationDelay: '140ms' }}
+        className={`animate-fade-up rounded-2xl border transition-all duration-200 overflow-hidden ${
           activeTab === 'url'
             ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
             : 'bg-white/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -391,7 +401,7 @@ export const InputHub: React.FC<InputHubProps> = ({
       </div>
 
       {/* Store Comparison Bar: Always-visible Search/Add Store Input + Quick-Add Dropdown */}
-      <div ref={dropdownRef} className="relative">
+      <div ref={dropdownRef} style={{ animationDelay: '210ms' }} className="relative animate-fade-up">
         <div className="px-3.5 py-3 rounded-2xl bg-white/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-2.5">
           {/* Active Stores Chips */}
           <div className="flex items-center gap-2 flex-wrap">
