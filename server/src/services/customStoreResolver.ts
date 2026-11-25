@@ -583,6 +583,19 @@ export async function fetchSerperSiteSearch(
     }
 
     if (pdpBlocked) {
+      // Last-resort targeted Google Shopping query for "<product> <store>" when the store's PDP is CAPTCHA/Cloudflare-gated
+      const targetedOffers = await fetchSerperShoppingOffers(
+        `${cleanQ} ${identity.displayName}`,
+        amazonPrice,
+        scoreStrictMatch
+      );
+      const targetedHit = targetedOffers.get(identity.canonicalKey);
+      if (targetedHit) {
+        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: targetedHit });
+        pruneMapIfNeeded(serperSiteCache, 200);
+        return targetedHit;
+      }
+
       const blockedHit: InternalComparison = {
         retailer: identity.displayName,
         price: null,
