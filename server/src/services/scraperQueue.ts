@@ -14,11 +14,12 @@ function buildEarlyRetailerQuery(input: string, resolvedTitle?: string): string 
   if (!resolvedTitle) return null;
   const trimmedInput = input.trim();
   const lowerTitle = resolvedTitle.toLowerCase();
-  const brandMatch = trimmedInput.match(/^(Apple|Nintendo|Sony|Samsung|Bose|LG|Microsoft|Google|Logitech|Dyson)\b/i);
+  const brandMatch = trimmedInput.match(/^(Apple|Nintendo|Sony|Samsung|Bose|LG|Microsoft|Google|Logitech|Dyson|Beats|JBL|Anker|Keychron|Razer|Corsair|Sennheiser|Craftsman|DeWalt|Milwaukee)\b/i);
   const inferredBrand = brandMatch?.[1] || (
     /\b(airpods|iphone|ipad|macbook|apple\s*watch|watch\s*(?:se|series|ultra))\b/i.test(lowerTitle) ? 'Apple'
       : /\bswitch\b/i.test(lowerTitle) ? 'Nintendo'
       : /\b(wh-?1000|wf-?1000|playstation)\b/i.test(lowerTitle) ? 'Sony'
+      : /\bstudio\s*pro\b|\bsolo\s*[34]\b|\bpowerbeats\b/i.test(lowerTitle) ? 'Beats'
       : null
   );
   if (inferredBrand && !new RegExp(`\\b${inferredBrand}\\b`, 'i').test(resolvedTitle)) {

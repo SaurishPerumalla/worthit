@@ -22,10 +22,12 @@ const STRICT_BRANDS = [
 
 function extractSpecificModelTokens(query: string): string[] {
   const lower = query.toLowerCase();
-  const rawTokens = lower.match(/\b[a-z0-9]+(?:-[a-z0-9]+)+\b|\b(?:[a-z]{1,4}\d{1,5}[a-z0-9]*|\d{1,4}[a-z]{1,4})\b/g) || [];
-  const ignore = new Set(['2k', '4k', '8k', '3d', '5g', '4g', 'lte', 'usb', 'hdmi', '40mm', '41mm', '42mm', '44mm', '45mm', '46mm', '49mm', '64gb', '128gb', '256gb', '512gb', '1tb', '2tb', '1st', '2nd', '3rd', '4th', '5th', 'ps5', 'ps4', 'gen2', 'gen3']);
+  const rawTokens = lower.match(/\b[a-z]+-?\d+[a-z0-9-]*\b|\b\d+[a-z]+\b/g) || [];
+  const ignore = new Set(['2k', '4k', '8k', '3d', '5g', '4g', 'lte', 'usb', 'hdmi', 'usbc']);
+  const unitRe = /^\d+(?:h|hr|hrs|oz|lb|lbs|ft|in|mm|cm|m|w|kw|mah|wh|hz|khz|mhz|ghz|db|gb|tb|mb|mp|v|a|st|nd|rd|th)$/i;
   return [...new Set(
     rawTokens
+      .filter(t => !unitRe.test(t.replace(/-/g, '')))
       .map(t => t.replace(/-/g, '').trim())
       .filter(t => t.length >= 2 && !ignore.has(t) && /[a-z]/i.test(t) && /\d/.test(t))
   )];
