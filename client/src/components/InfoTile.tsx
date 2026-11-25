@@ -26,7 +26,7 @@ export const InfoTile: React.FC<InfoTileProps> = ({ onQuickSearch }) => {
         </h2>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
           Spot fake discounts using real price history and compare prices across{' '}
-          <span className="text-slate-800 dark:text-slate-200 font-medium">Amazon, Target, Best Buy, Walmart &amp; custom stores</span>.
+          <span className="text-slate-800 dark:text-slate-200 font-medium">various stores and any others that you can think of</span>.
         </p>
       </div>
 
