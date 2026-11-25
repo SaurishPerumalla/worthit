@@ -40,7 +40,7 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'best buy',
     displayName: 'Best Buy',
     domain: 'bestbuy.com',
-    aliases: ['best buy', 'bestbuy', 'bestbuy.com'],
+    aliases: ['best buy', 'bestbuy', 'bestbuy.com', 'best buy.com'],
     isCoreBigBox: true,
     buildSearchUrl: (q) => `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(q)}&qp=condition_facet%3DCondition~New`
   },
@@ -70,14 +70,14 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'bhphotovideo',
     displayName: 'B&H Photo',
     domain: 'bhphotovideo.com',
-    aliases: ['b&h photo', 'b&h', 'b&h photo video', 'bh photo', 'bhphotovideo', 'bhphotovideo.com', 'bhphoto.com'],
+    aliases: ['b&h photo', 'b&h', 'b&h photo video', 'b&h photo-video-audio', 'b&h photo video audio', 'bh photo', 'bhphotovideo', 'bhphotovideo.com', 'bhphoto.com'],
     buildSearchUrl: (q) => `https://www.bhphotovideo.com/c/search?Ntt=${encodeURIComponent(q)}`
   },
   {
     canonicalKey: 'newegg',
     displayName: 'Newegg',
     domain: 'newegg.com',
-    aliases: ['newegg', 'newegg.com'],
+    aliases: ['newegg', 'newegg.com', 'newegg business', 'neweggbusiness.com'],
     buildSearchUrl: (q) => `https://www.newegg.com/p/pl?d=${encodeURIComponent(q)}`
   },
   {
@@ -119,7 +119,7 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'adorama',
     displayName: 'Adorama',
     domain: 'adorama.com',
-    aliases: ['adorama', 'adorama.com'],
+    aliases: ['adorama', 'adorama.com', 'adorama camera'],
     buildSearchUrl: (q) => `https://www.adorama.com/l/?searchinfo=${encodeURIComponent(q)}`
   },
   {
@@ -133,7 +133,7 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'lowes',
     displayName: "Lowe's",
     domain: 'lowes.com',
-    aliases: ["lowe's", 'lowes', 'lowes.com'],
+    aliases: ["lowe's", 'lowes', 'lowes.com', "lowe's home improvement", 'lowes home improvement'],
     buildSearchUrl: (q) => `https://www.lowes.com/search?searchTerm=${encodeURIComponent(q)}`
   },
   {
@@ -154,14 +154,14 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'sony',
     displayName: 'Sony',
     domain: 'electronics.sony.com',
-    aliases: ['sony', 'sony.com', 'electronics.sony.com'],
+    aliases: ['sony', 'sony.com', 'electronics.sony.com', 'sony electronics'],
     buildSearchUrl: (q) => `https://electronics.sony.com/search/${encodeURIComponent(q)}`
   },
   {
     canonicalKey: 'dell',
     displayName: 'Dell',
     domain: 'dell.com',
-    aliases: ['dell', 'dell.com'],
+    aliases: ['dell', 'dell.com', 'dell technologies'],
     buildSearchUrl: (q) => `https://www.dell.com/en-us/search/${encodeURIComponent(q)}`
   },
   {
@@ -175,7 +175,7 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'samsung',
     displayName: 'Samsung',
     domain: 'samsung.com',
-    aliases: ['samsung', 'samsung.com'],
+    aliases: ['samsung', 'samsung.com', 'samsung electronics'],
     buildSearchUrl: (q) => `https://www.samsung.com/us/search/searchMain/?listType=g&searchTerm=${encodeURIComponent(q)}`
   },
   {
@@ -203,8 +203,15 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'sweetwater',
     displayName: 'Sweetwater',
     domain: 'sweetwater.com',
-    aliases: ['sweetwater', 'sweetwater.com'],
+    aliases: ['sweetwater', 'sweetwater.com', 'sweetwater sound'],
     buildSearchUrl: (q) => `https://www.sweetwater.com/store/search?s=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'guitar center',
+    displayName: 'Guitar Center',
+    domain: 'guitarcenter.com',
+    aliases: ['guitar center', 'guitarcenter', 'guitarcenter.com'],
+    buildSearchUrl: (q) => `https://www.guitarcenter.com/search?Ntt=${encodeURIComponent(q)}`
   },
   {
     canonicalKey: 'monoprice',
@@ -224,14 +231,14 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'lego',
     displayName: 'LEGO',
     domain: 'lego.com',
-    aliases: ['lego', 'lego.com'],
+    aliases: ['lego', 'lego.com', 'lego store'],
     buildSearchUrl: (q) => `https://www.lego.com/en-us/search?q=${encodeURIComponent(q)}`
   },
   {
     canonicalKey: 'rei',
     displayName: 'REI',
     domain: 'rei.com',
-    aliases: ['rei', 'rei.com'],
+    aliases: ['rei', 'rei.com', 'rei co-op'],
     buildSearchUrl: (q) => `https://www.rei.com/search?q=${encodeURIComponent(q)}`
   },
   {
@@ -245,7 +252,7 @@ const KNOWN_STORES: Array<{
     canonicalKey: 'bjs',
     displayName: "BJ's",
     domain: 'bjs.com',
-    aliases: ['bjs', "bj's", 'bjs.com'],
+    aliases: ['bjs', "bj's", 'bjs.com', "bj's wholesale club", 'bjs wholesale club'],
     buildSearchUrl: (q) => `https://www.bjs.com/search/${encodeURIComponent(q)}`
   },
   {
@@ -261,6 +268,69 @@ const KNOWN_STORES: Array<{
     domain: 'wayfair.com',
     aliases: ['wayfair', 'wayfair.com'],
     buildSearchUrl: (q) => `https://www.wayfair.com/keyword.php?keyword=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'microsoft',
+    displayName: 'Microsoft Store',
+    domain: 'microsoft.com',
+    aliases: ['microsoft', 'microsoft store', 'microsoft.com'],
+    buildSearchUrl: (q) => `https://www.microsoft.com/en-us/search/shop/devices?q=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'playstation direct',
+    displayName: 'PlayStation Direct',
+    domain: 'direct.playstation.com',
+    aliases: ['playstation direct', 'ps direct', 'direct.playstation.com', 'playstation.com'],
+    buildSearchUrl: (q) => `https://direct.playstation.com/en-us/search?q=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'dicks sporting goods',
+    displayName: "Dick's Sporting Goods",
+    domain: 'dickssportinggoods.com',
+    aliases: ["dick's sporting goods", 'dicks sporting goods', 'dickssportinggoods', 'dickssportinggoods.com'],
+    buildSearchUrl: (q) => `https://www.dickssportinggoods.com/search/SearchDisplay?searchTerm=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'chewy',
+    displayName: 'Chewy',
+    domain: 'chewy.com',
+    aliases: ['chewy', 'chewy.com'],
+    buildSearchUrl: (q) => `https://www.chewy.com/s?query=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'ulta',
+    displayName: 'Ulta Beauty',
+    domain: 'ulta.com',
+    aliases: ['ulta', 'ulta beauty', 'ulta.com'],
+    buildSearchUrl: (q) => `https://www.ulta.com/search?search=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'sephora',
+    displayName: 'Sephora',
+    domain: 'sephora.com',
+    aliases: ['sephora', 'sephora.com'],
+    buildSearchUrl: (q) => `https://www.sephora.com/search?keyword=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'nordstrom',
+    displayName: 'Nordstrom',
+    domain: 'nordstrom.com',
+    aliases: ['nordstrom', 'nordstrom.com'],
+    buildSearchUrl: (q) => `https://www.nordstrom.com/sr?keyword=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'garmin',
+    displayName: 'Garmin',
+    domain: 'garmin.com',
+    aliases: ['garmin', 'garmin.com'],
+    buildSearchUrl: (q) => `https://www.garmin.com/en-US/search/?query=${encodeURIComponent(q)}`
+  },
+  {
+    canonicalKey: 'bose',
+    displayName: 'Bose',
+    domain: 'bose.com',
+    aliases: ['bose', 'bose.com'],
+    buildSearchUrl: (q) => `https://www.bose.com/search?q=${encodeURIComponent(q)}`
   }
 ];
 
@@ -276,9 +346,20 @@ function cleanStoreRawInput(raw: string): string {
 export function normalizeStoreIdentity(rawStore: string): StoreIdentity {
   const cleaned = cleanStoreRawInput(rawStore);
   const lower = cleaned.toLowerCase();
+  const stem = lower.split(/\s+[-–|]\s+/)[0].trim();
+  const compact = lower.replace(/[^a-z0-9]/g, '');
+  const stemCompact = stem.replace(/[^a-z0-9]/g, '');
 
   for (const known of KNOWN_STORES) {
-    if (known.aliases.includes(lower) || known.domain === lower) {
+    const knownStem = known.domain.replace(/\.[a-z]{2,}$/i, '').replace(/[^a-z0-9]/g, '');
+    const aliasMatch = known.aliases.some(
+      (a) =>
+        a === lower ||
+        a === stem ||
+        a.replace(/[^a-z0-9]/g, '') === compact ||
+        a.replace(/[^a-z0-9]/g, '') === stemCompact
+    );
+    if (aliasMatch || known.domain === lower || known.domain === stem || knownStem === compact) {
       return {
         canonicalKey: known.canonicalKey,
         displayName: known.displayName,
@@ -301,6 +382,29 @@ export function normalizeStoreIdentity(rawStore: string): StoreIdentity {
     isCoreBigBox: false,
     buildSearchUrl: (q) => `https://www.${inferredDomain}/search?q=${encodeURIComponent(q)}`
   };
+}
+
+export function findMatchingOfferInMap(
+  offers: Map<string, InternalComparison>,
+  identity: StoreIdentity
+): InternalComparison | null {
+  const exact = offers.get(identity.canonicalKey);
+  if (exact) return exact;
+
+  const targetStem = identity.domain.replace(/\.[a-z]{2,}$/i, '').replace(/[^a-z0-9]/g, '');
+  const displayStem = identity.displayName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  for (const [key, offer] of offers.entries()) {
+    const keyStem = key.replace(/\.[a-z]{2,}$/i, '').replace(/[^a-z0-9]/g, '');
+    const retailStem = offer.retailer.toLowerCase().replace(/\.[a-z]{2,}$/i, '').replace(/[^a-z0-9]/g, '');
+    if (
+      (targetStem && (keyStem === targetStem || retailStem === targetStem)) ||
+      (displayStem && (keyStem === displayStem || retailStem === displayStem))
+    ) {
+      return offer;
+    }
+  }
+  return null;
 }
 
 export function simplifyProductQueryForStore(query: string): string {
@@ -364,14 +468,19 @@ function pruneMapIfNeeded<K, V>(map: Map<K, V>, maxSize: number) {
 export async function fetchSerperShoppingOffers(
   targetQuery: string,
   amazonPrice: number,
-  scoreStrictMatch: ScoreMatcherFn
+  scoreStrictMatch: ScoreMatcherFn,
+  options?: { matchQuery?: string; num?: number }
 ): Promise<Map<string, InternalComparison>> {
   const results = new Map<string, InternalComparison>();
   const apiKey = process.env.SERPER_API_KEY?.trim();
   if (!apiKey) return results;
 
-  const cleanQ = simplifyProductQueryForStore(targetQuery);
-  const cacheKey = cleanQ.toLowerCase();
+  const matchTarget = options?.matchQuery || targetQuery;
+  const searchQuery = options?.matchQuery
+    ? targetQuery.replace(/\s+/g, ' ').trim()
+    : simplifyProductQueryForStore(targetQuery);
+  const reqNum = options?.num ?? 25;
+  const cacheKey = `${searchQuery.toLowerCase()}::${matchTarget.toLowerCase()}::${reqNum}`;
   const cached = serperShoppingCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.offers;
@@ -385,12 +494,12 @@ export async function fetchSerperShoppingOffers(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        q: cleanQ,
+        q: searchQuery,
         gl: 'us',
         hl: 'en',
-        num: 20
+        num: reqNum
       })
-    }, 4000);
+    }, 4200);
 
     if (!res.ok) return results;
     const data: any = await res.json();
@@ -410,7 +519,7 @@ export async function fetchSerperShoppingOffers(
       const price = parseUsdNumber(rawPrice);
       if (price === null || !isPricePlausible(price, amazonPrice)) continue;
 
-      const sc = scoreStrictMatch(title, targetQuery);
+      const sc = scoreStrictMatch(title, matchTarget);
       if (sc < 0) continue;
 
       const identity = normalizeStoreIdentity(source);
@@ -443,9 +552,17 @@ export async function fetchSerperShoppingOffers(
   return results;
 }
 
+const SHOPPING_FIRST_STORES = new Set([
+  'newegg', 'costco', 'home depot', 'lowes', 'micro center', 'gamestop',
+  'bhphotovideo', 'adorama', 'kohls', 'macys', 'staples', 'bjs', 'samsclub',
+  'guitar center', 'best buy', 'walmart', 'target', 'ebay', 'wayfair'
+]);
+
 /**
- * Queries Google Web Search via Serper.dev for `site:<domain> <product>` as a universal
- * fallback for any custom store website not listed in Google Shopping (cached 30m).
+ * Resolves a store missing after free scrapers + initial generic Shopping via Serper:
+ * For major retail chains (which often block cloud scrapers & omit organic snippet prices),
+ * runs a single targeted Google Shopping "<product> <store>" query first (1 credit) before
+ * spending a `site:<domain>` web search credit, keeping total API usage minimal.
  */
 export async function fetchSerperSiteSearch(
   identity: StoreIdentity,
@@ -463,7 +580,29 @@ export async function fetchSerperSiteSearch(
     return cached.comparison;
   }
 
+  const tryTargetedShopping = async (): Promise<InternalComparison | null> => {
+    const targetedOffers = await fetchSerperShoppingOffers(
+      `${cleanQ} ${identity.displayName}`,
+      amazonPrice,
+      scoreStrictMatch,
+      { matchQuery: targetQuery, num: 20 }
+    );
+    return findMatchingOfferInMap(targetedOffers, identity);
+  };
+
   try {
+    // Step A: For major merchants frequently on Google Shopping & protected by Cloudflare/CAPTCHA,
+    // query targeted Google Shopping first (1 credit) so we avoid a wasted `site:` search + CAPTCHA hit.
+    if (SHOPPING_FIRST_STORES.has(identity.canonicalKey)) {
+      const shopHit = await tryTargetedShopping();
+      if (shopHit) {
+        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: shopHit });
+        pruneMapIfNeeded(serperSiteCache, 200);
+        return shopHit;
+      }
+    }
+
+    // Step B: Google `site:<domain>` web search (handles custom `.com` sites, direct stores like Apple, etc.)
     const res = await fetchWithTimeout('https://google.serper.dev/search', {
       method: 'POST',
       headers: {
@@ -474,142 +613,155 @@ export async function fetchSerperSiteSearch(
         q: `site:${identity.domain} ${cleanQ}`,
         gl: 'us',
         hl: 'en',
-        num: 5
+        num: 6
       })
     }, 3800);
 
-    if (!res.ok) return null;
-    const data: any = await res.json();
-    const organic: any[] = Array.isArray(data?.organic) ? data.organic : [];
+    if (res.ok) {
+      const data: any = await res.json();
+      const organic: any[] = Array.isArray(data?.organic) ? data.organic : [];
 
-    const ranked: Array<{ title: string; link: string; price: number | null; inStock: boolean; score: number }> = [];
+      const ranked: Array<{ title: string; link: string; price: number | null; inStock: boolean; score: number }> = [];
 
-    for (const item of organic) {
-      const title = String(item?.title || '').replace(/\s*[-|–]\s*[^-|–]+$/, '').trim();
-      const link = String(item?.link || '').trim();
-      const snippet = String(item?.snippet || '');
-      const priceRange = String(item?.priceRange || '');
-      const attrs = item?.attributes ? JSON.stringify(item.attributes) : '';
+      for (const item of organic) {
+        const rawItemTitle = String(item?.title || '');
+        const strippedTitle = rawItemTitle.replace(/\s*[-|–—:]\s*[^-|–—:]+$/, '').trim();
+        const link = String(item?.link || '').trim();
+        const snippet = String(item?.snippet || '');
+        const priceRange = String(item?.priceRange || '');
+        const itemPrice = item?.price ? String(item.price) : '';
+        const attrs = item?.attributes ? JSON.stringify(item.attributes) : '';
 
-      if (!link || !hostnameMatchesDomain(link, identity.domain)) continue;
+        if (!link || !hostnameMatchesDomain(link, identity.domain)) continue;
+        if (/sponsored[-_]?ad|\.pdf(\?|$)|\/lit_files\//i.test(link)) continue;
 
-      const sc = scoreStrictMatch(title || item?.title || '', targetQuery);
-      if (sc < 0) continue;
-
-      const combinedText = `${priceRange} ${attrs} ${snippet}`;
-      if (/\b(cad|eur|gbp)\b/i.test(combinedText)) continue;
-
-      const prices = extractPricesFromText(combinedText).filter((p) => isPricePlausible(p, amazonPrice));
-      const inStock = !/\bout of stock\b|\bsold out\b|\bunavailable\b/i.test(combinedText);
-
-      ranked.push({
-        title,
-        link,
-        price: prices[0] ?? null,
-        inStock,
-        score: sc + (prices[0] ? 15 : 0)
-      });
-    }
-
-    ranked.sort((a, b) => b.score - a.score);
-    const best = ranked[0];
-    if (!best) return null;
-
-    if (best.price !== null) {
-      const hit: InternalComparison = {
-        retailer: identity.displayName,
-        price: best.price,
-        regularPrice: null,
-        url: best.link,
-        inStock: best.inStock,
-        isLowestPrice: false,
-        label: best.inStock ? `${identity.displayName} Price` : 'Out of Stock',
-        verifiedLive: true
-      };
-      serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: hit });
-      pruneMapIfNeeded(serperSiteCache, 200);
-      return hit;
-    }
-
-    // If Google returned the exact PDP link without a snippet price, try reading the PDP directly
-    let pdpBlocked = false;
-    try {
-      const pdpRes = await fetchWithTimeout(best.link, {
-        headers: { ...BROWSER_HEADERS, 'Accept': 'text/html,application/xhtml+xml' }
-      }, 3000);
-      const html = pdpRes.ok ? await pdpRes.text() : '';
-      if (pdpRes.ok && !isBlockedHtmlOrStatus(pdpRes.status, html)) {
-        const { comparison } = extractBestProductFromHtml(
-          html,
-          pdpRes.url || best.link,
-          identity.displayName,
-          targetQuery,
-          amazonPrice,
-          scoreStrictMatch
+        const sc = Math.max(
+          scoreStrictMatch(strippedTitle, targetQuery),
+          scoreStrictMatch(rawItemTitle, targetQuery)
         );
-        if (comparison) {
-          serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison });
-          pruneMapIfNeeded(serperSiteCache, 200);
-          return comparison;
-        }
-      } else {
-        pdpBlocked = true;
-        // Direct PDP blocked (e.g. Cloudflare on Newegg/B&H); try headless Markdown reader on the exact Serper URL
-        const jinaPdp = await fetchWithTimeout(`https://r.jina.ai/${best.link}`, {
-          headers: { 'Accept': 'text/plain' }
-        }, 6500);
-        if (jinaPdp.ok) {
-          const md = await jinaPdp.text();
-          if (!isBlockedHtmlOrStatus(200, md)) {
-            pdpBlocked = false;
-            const mdHit = extractBestProductFromSinglePdpMarkdown(
-              md,
-              best.link,
+        if (sc < 0) continue;
+
+        const combinedText = `${itemPrice} ${priceRange} ${attrs} ${snippet}`;
+        if (/\b(cad|eur|gbp|aud|mxn)\b/i.test(combinedText)) continue;
+
+        const prices = extractPricesFromText(combinedText).filter((p) => isPricePlausible(p, amazonPrice));
+        const inStock = !/\bout of stock\b|\bsold out\b|\bunavailable\b/i.test(combinedText);
+        const isSearchPage = /\/p\/pl\?|\/search(?:\b|page)|[?&](?:q|keyword|st|Ntt|searchTerm)=/i.test(link);
+
+        ranked.push({
+          title: strippedTitle || rawItemTitle,
+          link,
+          price: prices[0] ?? null,
+          inStock,
+          score: sc + (prices[0] ? 25 : 0) + (isSearchPage ? -10 : 8)
+        });
+      }
+
+      ranked.sort((a, b) => b.score - a.score);
+      const pricedBest = ranked.find((r) => r.price !== null);
+      if (pricedBest && pricedBest.price !== null) {
+        const hit: InternalComparison = {
+          retailer: identity.displayName,
+          price: pricedBest.price,
+          regularPrice: null,
+          url: pricedBest.link,
+          inStock: pricedBest.inStock,
+          isLowestPrice: false,
+          label: pricedBest.inStock ? `${identity.displayName} Price` : 'Out of Stock',
+          verifiedLive: true
+        };
+        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: hit });
+        pruneMapIfNeeded(serperSiteCache, 200);
+        return hit;
+      }
+
+      // If no Google snippet price, try reading up to top 2 matching PDPs (direct -> r.jina.ai)
+      let blockedUrl: string | null = null;
+      for (const cand of ranked.slice(0, 2)) {
+        try {
+          const pdpRes = await fetchWithTimeout(cand.link, {
+            headers: { ...BROWSER_HEADERS, 'Accept': 'text/html,application/xhtml+xml' }
+          }, 3000);
+          const html = pdpRes.ok ? await pdpRes.text() : '';
+          if (pdpRes.ok && !isBlockedHtmlOrStatus(pdpRes.status, html)) {
+            const { comparison } = extractBestProductFromHtml(
+              html,
+              pdpRes.url || cand.link,
               identity.displayName,
               targetQuery,
               amazonPrice,
               scoreStrictMatch
             );
-            if (mdHit) {
-              serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: mdHit });
+            if (comparison) {
+              serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison });
               pruneMapIfNeeded(serperSiteCache, 200);
-              return mdHit;
+              return comparison;
+            }
+          } else {
+            blockedUrl = blockedUrl || cand.link;
+            const jinaPdp = await fetchWithTimeout(`https://r.jina.ai/${cand.link}`, {
+              headers: { 'Accept': 'text/plain' }
+            }, 6500);
+            if (jinaPdp.ok) {
+              const md = await jinaPdp.text();
+              if (!isBlockedHtmlOrStatus(200, md)) {
+                const mdHit = extractBestProductFromSinglePdpMarkdown(
+                  md,
+                  cand.link,
+                  identity.displayName,
+                  targetQuery,
+                  amazonPrice,
+                  scoreStrictMatch
+                );
+                if (mdHit) {
+                  serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: mdHit });
+                  pruneMapIfNeeded(serperSiteCache, 200);
+                  return mdHit;
+                }
+              } else {
+                blockedUrl = blockedUrl || cand.link;
+              }
             }
           }
+        } catch {
+          // try next ranked candidate
         }
       }
-    } catch {
-      // ignore
-    }
 
-    if (pdpBlocked) {
-      // Last-resort targeted Google Shopping query for "<product> <store>" when the store's PDP is CAPTCHA/Cloudflare-gated
-      const targetedOffers = await fetchSerperShoppingOffers(
-        `${cleanQ} ${identity.displayName}`,
-        amazonPrice,
-        scoreStrictMatch
-      );
-      const targetedHit = targetedOffers.get(identity.canonicalKey);
-      if (targetedHit) {
-        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: targetedHit });
-        pruneMapIfNeeded(serperSiteCache, 200);
-        return targetedHit;
+      // Step C: For non-Shopping-first stores (arbitrary custom domains / Apple / boutiques),
+      // try targeted Google Shopping if organic `site:` didn't get a live price.
+      if (!SHOPPING_FIRST_STORES.has(identity.canonicalKey)) {
+        const shopHit = await tryTargetedShopping();
+        if (shopHit) {
+          serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: shopHit });
+          pruneMapIfNeeded(serperSiteCache, 200);
+          return shopHit;
+        }
       }
 
-      const blockedHit: InternalComparison = {
-        retailer: identity.displayName,
-        price: null,
-        regularPrice: null,
-        url: best.link,
-        inStock: best.inStock,
-        isLowestPrice: false,
-        label: 'Site Blocked',
-        statusReason: 'blocked',
-        verifiedLive: false
-      };
-      serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: blockedHit });
-      pruneMapIfNeeded(serperSiteCache, 200);
-      return blockedHit;
+      if (blockedUrl) {
+        const blockedHit: InternalComparison = {
+          retailer: identity.displayName,
+          price: null,
+          regularPrice: null,
+          url: blockedUrl,
+          inStock: ranked[0]?.inStock ?? true,
+          isLowestPrice: false,
+          label: 'Site Blocked',
+          statusReason: 'blocked',
+          verifiedLive: false
+        };
+        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: blockedHit });
+        pruneMapIfNeeded(serperSiteCache, 200);
+        return blockedHit;
+      }
+    } else if (!SHOPPING_FIRST_STORES.has(identity.canonicalKey)) {
+      const shopHit = await tryTargetedShopping();
+      if (shopHit) {
+        serperSiteCache.set(cacheKey, { expiresAt: Date.now() + SERPER_CACHE_TTL_MS, comparison: shopHit });
+        pruneMapIfNeeded(serperSiteCache, 200);
+        return shopHit;
+      }
     }
   } catch {
     // ignore
@@ -652,8 +804,9 @@ function isBlockedHtmlOrStatus(status: number, html: string): boolean {
   const head = html.slice(0, 6000);
   return (
     /Attention Required!\s*\|\s*Cloudflare/i.test(head) ||
-    /<title>\s*(?:Just a moment\.\.\.|Access Denied|Robot or human\?|Error Page)\s*<\/title>/i.test(head) ||
-    /perimeterx|px-captcha|validateCaptcha|cf-browser-verification|Warning:\s*Target URL returned error\s*403/i.test(head)
+    /<title>\s*(?:Just a moment\.\.\.|Access Denied|Are you a human\??|Robot or human\?|Error Page|Pardon Our Interruption)\s*<\/title>/i.test(head) ||
+    /^Title:\s*(?:Just a moment|Access Denied|Are you a human\??|Robot or human\??|Error Page|Pardon Our Interruption|Attention Required|Security Check|filter-store\.svg)\b/im.test(head) ||
+    /perimeterx|px-captcha|validateCaptcha|cf-browser-verification|Warning:\s*Target URL returned error\s*(?:401|403|429|503)|requiring CAPTCHA|areyouahuman/i.test(head)
   );
 }
 
@@ -1058,7 +1211,39 @@ export async function resolveAppleLiveProduct(
     });
 
     candidates.sort((a, b) => b.score - a.score);
-    const targetUrl = candidates[0]?.url;
+    let targetUrl = candidates[0]?.url;
+
+    // Fallback: Apple search often links to marketing pages like apple.com/airpods-pro/ instead of /shop/
+    if (!targetUrl) {
+      const mktCandidates: Array<{ url: string; score: number }> = [];
+      const qWords = cleanQ.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !/^(apple|with|and|for)$/i.test(w));
+      $s('a[href*="apple.com/"]').each((_, el) => {
+        const href = ($s(el).attr('href') || '').split('?')[0].split('#')[0];
+        if (!href || /\/search|\/support|\/retail|\/legal|\/compare|\/specs|accessories/i.test(href)) return;
+        const absUrl = toAbsoluteUrl(href, 'https://www.apple.com');
+        const linkText = `${$s(el).text()} ${absUrl.replace(/https?:\/\/www\.apple\.com\//i, '').replace(/[-/]+/g, ' ')}`.toLowerCase();
+        const hits = qWords.filter(w => linkText.includes(w)).length;
+        if (hits >= Math.min(2, qWords.length) && !mktCandidates.some(c => c.url === absUrl)) {
+          mktCandidates.push({ url: absUrl, score: hits * 20 - absUrl.length * 0.05 });
+        }
+      });
+      mktCandidates.sort((a, b) => b.score - a.score);
+      if (mktCandidates[0]) {
+        try {
+          const mktRes = await fetchWithTimeout(mktCandidates[0].url, {
+            headers: { ...BROWSER_HEADERS, 'Accept': 'text/html' }
+          }, 3000);
+          if (mktRes.ok) {
+            const mHtml = await mktRes.text();
+            const buyMatch = mHtml.match(/href="([^"]*\/shop\/(?:buy-[a-z0-9-]+|goto\/buy_[a-z0-9_]+)[^"]*)"/i);
+            targetUrl = buyMatch ? toAbsoluteUrl(buyMatch[1], 'https://www.apple.com') : mktCandidates[0].url;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     if (!targetUrl) return null;
 
     const pdpRes = await fetchWithTimeout(targetUrl, {
@@ -1726,17 +1911,6 @@ export async function resolveUniversalCustomStore(
   if (identity.canonicalKey === 'apple') {
     const apple = await resolveAppleLiveProduct(targetQuery, amazonPrice, scoreStrictMatch);
     if (apple) return apple;
-    return {
-      retailer: 'Apple',
-      price: null,
-      regularPrice: null,
-      url: fallbackSearchUrl,
-      inStock: false,
-      isLowestPrice: false,
-      label: 'Not Listed',
-      statusReason: 'not_found',
-      verifiedLive: false
-    };
   }
   if (identity.canonicalKey === 'staples') {
     const staples = await resolveStaplesLiveProduct(targetQuery, amazonPrice, scoreStrictMatch);
@@ -1806,8 +1980,10 @@ export async function resolveUniversalCustomStore(
           scoreStrictMatch
         );
         if (comparison) return comparison;
-        if (candidatePdpUrl && !discoveredPdpUrl) discoveredPdpUrl = candidatePdpUrl;
-        break;
+        if (candidatePdpUrl && !discoveredPdpUrl) {
+          discoveredPdpUrl = candidatePdpUrl;
+          break;
+        }
       }
     } catch {
       // try next search URL shape

@@ -109,20 +109,20 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
                   : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center space-x-1.5">
-                  <span className={`h-2 w-2 rounded-full ${meta.dot}`}></span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+              <div className="flex items-start justify-between gap-1.5 mb-1">
+                <div className="flex items-center space-x-1.5 min-w-0">
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dot}`}></span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                     {c.retailer}
                   </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  {c.label && (
-                    <span className="text-[9px] uppercase px-1 py-0.2 rounded font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                      {c.label}
+                <div className="flex items-center gap-1 shrink-0">
+                  {(hasPrice ? c.label : c.statusReason === 'blocked' ? 'LIVE SITE' : c.statusReason === 'not_found' ? 'SEARCH' : c.label) && (
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 whitespace-nowrap leading-none">
+                      {hasPrice ? c.label : c.statusReason === 'blocked' ? 'LIVE SITE' : c.statusReason === 'not_found' ? 'SEARCH' : c.label}
                     </span>
                   )}
-                  <ExternalLink className="h-3 w-3 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
+                  <ExternalLink className="h-3 w-3 shrink-0 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-colors" />
                 </div>
               </div>
 
@@ -139,11 +139,11 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
                     )}
                   </div>
                 ) : (
-                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    {c.statusReason === 'not_found'
-                      ? 'Not Listed'
-                      : c.statusReason === 'blocked'
-                        ? 'Verify on Site'
+                  <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    {c.statusReason === 'blocked'
+                      ? 'View Live Price'
+                      : c.statusReason === 'not_found'
+                        ? 'Search Store'
                         : 'Check Store'}
                   </div>
                 )}
@@ -164,10 +164,10 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
                   </span>
                 ) : c.price ? (
                   <span className="text-slate-400">Matches Amazon</span>
-                ) : c.statusReason === 'not_found' ? (
-                  <span className="text-slate-400">No matching item</span>
                 ) : c.statusReason === 'blocked' ? (
-                  <span className="text-slate-400">Open store page</span>
+                  <span className="text-slate-400">Check on {c.retailer}</span>
+                ) : c.statusReason === 'not_found' ? (
+                  <span className="text-slate-400">Browse on {c.retailer}</span>
                 ) : (
                   <span className="text-slate-400">Live search</span>
                 )}

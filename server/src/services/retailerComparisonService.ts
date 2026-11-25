@@ -9,6 +9,7 @@ import {
   fetchDekuDealsPrices,
   fetchSerperShoppingOffers,
   fetchSerperSiteSearch,
+  findMatchingOfferInMap,
   resolveUniversalCustomStore
 } from './customStoreResolver.js';
 
@@ -20,17 +21,43 @@ const STRICT_BRANDS = [
   'ninja', 'kitchenaid', 'keurig', 'breville', 'roomba', 'irobot', 'shure'
 ];
 
-function extractSpecificModelTokens(query: string): string[] {
-  const lower = query.toLowerCase();
-  const rawTokens = lower.match(/\b[a-z]+-?\d+[a-z0-9-]*\b|\b\d+[a-z]+\b/g) || [];
+const BRAND_EQUIVALENTS: Record<string, RegExp> = {
+  apple: /\b(?:apple|airpods|iphone|ipad|macbook|imac|airtag|homepod|apple\s*watch|vision\s*pro|beats)\b/i,
+  google: /\b(?:google|pixel)\b/i,
+  microsoft: /\b(?:microsoft|xbox|surface)\b/i,
+  sony: /\b(?:sony|playstation|ps[45]|dualsense)\b/i,
+  samsung: /\b(?:samsung|galaxy)\b/i,
+  irobot: /\b(?:irobot|roomba)\b/i
+};
+
+function stripParentheticals(text: string): string {
+  return text.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extractSpecificModelTokens(query: string): { required: string[]; optional: string[] } {
+  const withoutParens = stripParentheticals(query).toLowerCase();
+  const fullLower = query.toLowerCase();
   const ignore = new Set(['2k', '4k', '8k', '3d', '5g', '4g', 'lte', 'usb', 'hdmi', 'usbc']);
   const unitRe = /^\d+(?:h|hr|hrs|oz|lb|lbs|ft|in|mm|cm|m|w|kw|mah|wh|hz|khz|mhz|ghz|db|gb|tb|mb|mp|v|a|st|nd|rd|th)$/i;
-  return [...new Set(
-    rawTokens
-      .filter(t => !unitRe.test(t.replace(/-/g, '')))
-      .map(t => t.replace(/-/g, '').trim())
-      .filter(t => t.length >= 2 && !ignore.has(t) && /[a-z]/i.test(t) && /\d/.test(t))
-  )];
+  const asinRe = /^b0[a-z0-9]{8}$/i;
+
+  const extractFrom = (s: string) => {
+    const rawTokens = s.match(/\b[a-z]+-?\d+[a-z0-9-]*\b|\b\d+[a-z]+\b/g) || [];
+    return [...new Set(
+      rawTokens
+        .filter(t => !unitRe.test(t.replace(/-/g, '')) && !asinRe.test(t.replace(/-/g, '')))
+        .map(t => t.replace(/-/g, '').trim())
+        .filter(t => t.length >= 2 && !ignore.has(t) && /[a-z]/i.test(t) && /\d/.test(t))
+    )];
+  };
+
+  const outsideTokens = extractFrom(withoutParens);
+  const allTokens = extractFrom(fullLower);
+  // Short alphanumeric tokens outside parentheses (e.g. G502, QC45, V15, XM5, S25) are core consumer models;
+  // long vendor part numbers / parenthetical codes (e.g. CMHT51398, MTJV3AM) boost score when present rather than rejecting valid listings.
+  const required = outsideTokens.filter(t => t.length <= 7);
+  const optional = allTokens.filter(t => !required.includes(t));
+  return { required, optional };
 }
 
 /**
@@ -45,10 +72,14 @@ export function scoreStrictRetailerMatch(candidateTitle: string, targetQuery: st
   const qLower = targetQuery.toLowerCase();
   const tLower = candidateTitle.toLowerCase();
 
-  // Brand lock: if target query specifies a major brand, candidate must also name that brand
+  // Brand lock: if target query specifies a major brand, candidate must match either the brand or its unmistakable sub-brand line
   for (const brand of STRICT_BRANDS) {
-    if (new RegExp(`\\b${brand}\\b`, 'i').test(qLower) && !new RegExp(`\\b${brand}\\b`, 'i').test(tLower)) {
-      return -1;
+    if (new RegExp(`\\b${brand}\\b`, 'i').test(qLower)) {
+      const equivRe = BRAND_EQUIVALENTS[brand];
+      const matchesBrand = new RegExp(`\\b${brand}\\b`, 'i').test(tLower) || (equivRe ? equivRe.test(tLower) : false);
+      if (!matchesBrand) {
+        return -1;
+      }
     }
   }
 
@@ -70,19 +101,23 @@ export function scoreStrictRetailerMatch(candidateTitle: string, targetQuery: st
     return -1;
   }
 
-  // Enforce alphanumeric model numbers (e.g. K2, V15, WH1000XM5, QC45, G502)
-  const qModels = extractSpecificModelTokens(targetQuery);
-  if (qModels.length > 0) {
-    const tNorm = tLower.replace(/[^a-z0-9]+/g, '');
-    for (const model of qModels) {
-      if (!tNorm.includes(model)) {
-        return -1;
-      }
+  // Enforce core consumer model numbers while using parenthetical vendor codes as score boosters
+  const { required: qModels, optional: qOptionalModels } = extractSpecificModelTokens(targetQuery);
+  const tNorm = tLower.replace(/[^a-z0-9]+/g, '');
+  for (const model of qModels) {
+    if (!tNorm.includes(model)) {
+      return -1;
+    }
+  }
+
+  let adjustedScore = score;
+  for (const optModel of qOptionalModels) {
+    if (tNorm.includes(optModel)) {
+      adjustedScore += 30;
     }
   }
 
   // Demote multi-item kits unless explicitly requested
-  let adjustedScore = score;
   if (!/\bkit\b/i.test(targetQuery) && /\bkit\b/i.test(candidateTitle)) {
     adjustedScore -= 40;
   }
@@ -1037,22 +1072,22 @@ export async function compareRetailers(
     }
 
     const stillMissing = missingCustomIndices.filter(({ id }) => {
-      const hit = serperOffers.get(id.canonicalKey);
+      const hit = findMatchingOfferInMap(serperOffers, id);
       return !hit;
     });
 
     for (const { idx, id } of missingCustomIndices) {
-      const hit = serperOffers.get(id.canonicalKey);
-      if (hit) customResults[idx] = hit;
+      const hit = findMatchingOfferInMap(serperOffers, id);
+      if (hit) customResults[idx] = { ...hit, retailer: id.displayName };
     }
 
-    // Targeted `site:<domain>` query ONLY for custom stores not found in Google Shopping
+    // Targeted Google Shopping / `site:<domain>` query ONLY for custom stores not found in initial broad Shopping call
     if (options?.allowSerperSite !== false && stillMissing.length > 0) {
       const cleanQ = simplifyProductQueryForStore(productTitle);
       await Promise.all(
         stillMissing.map(async ({ idx, id }) => {
           const siteHit = await fetchSerperSiteSearch(id, cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch);
-          if (siteHit) customResults[idx] = siteHit;
+          if (siteHit) customResults[idx] = { ...siteHit, retailer: id.displayName };
         })
       );
     }
