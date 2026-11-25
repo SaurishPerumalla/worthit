@@ -12,29 +12,35 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
   // Retailer brand colors and badges
   const getRetailerMeta = (retailer: string) => {
     const r = retailer.toLowerCase();
-    if (r === 'target') {
+    if (r.includes('target')) {
       return { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' };
     }
-    if (r === 'best buy') {
+    if (r.includes('best buy') || r.includes('bestbuy')) {
       return { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-950/40', border: 'border-yellow-200 dark:border-yellow-900/50', dot: 'bg-yellow-400' };
     }
-    if (r === 'walmart') {
+    if (r.includes('walmart')) {
       return { color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40', border: 'border-blue-200 dark:border-blue-900/50', dot: 'bg-blue-500' };
     }
     if (r === 'amazon') {
       return { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', border: 'border-amber-200 dark:border-amber-900/50', dot: 'bg-amber-500' };
     }
-    if (r === 'costco' || r === 'gamestop') {
+    if (r.includes('costco') || r.includes('gamestop') || r.includes('staples')) {
       return { color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40', border: 'border-rose-200 dark:border-rose-900/50', dot: 'bg-rose-500' };
     }
-    if (r.includes('b&h') || r === 'micro center') {
+    if (r.includes('b&h') || r.includes('bhphoto') || r.includes('micro center') || r.includes('microcenter') || r.includes('adorama')) {
       return { color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40', border: 'border-sky-200 dark:border-sky-900/50', dot: 'bg-sky-500' };
     }
-    if (r === 'newegg') {
+    if (r.includes('newegg') || r.includes('home depot') || r.includes('homedepot')) {
       return { color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/40', border: 'border-orange-200 dark:border-orange-900/50', dot: 'bg-orange-500' };
     }
-    if (r === 'ebay') {
+    if (r.includes('ebay')) {
       return { color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40', border: 'border-violet-200 dark:border-violet-900/50', dot: 'bg-violet-500' };
+    }
+    if (r.includes('apple')) {
+      return { color: 'text-slate-600 dark:text-slate-300', bg: 'bg-slate-50 dark:bg-slate-900/40', border: 'border-slate-200 dark:border-slate-700/50', dot: 'bg-slate-400' };
+    }
+    if (r.includes('nintendo')) {
+      return { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40', border: 'border-red-200 dark:border-red-900/50', dot: 'bg-red-500' };
     }
     return {
       color: 'text-teal-600 dark:text-teal-400',
@@ -133,7 +139,11 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
                   </div>
                 ) : (
                   <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    Check Store
+                    {c.statusReason === 'not_found'
+                      ? 'Not Listed'
+                      : c.statusReason === 'blocked'
+                        ? 'Verify on Site'
+                        : 'Check Store'}
                   </div>
                 )}
               </div>
@@ -153,6 +163,10 @@ export const RetailerPriceComparison: React.FC<Props> = ({ comparisons }) => {
                   </span>
                 ) : c.price ? (
                   <span className="text-slate-400">Matches Amazon</span>
+                ) : c.statusReason === 'not_found' ? (
+                  <span className="text-slate-400">No matching item</span>
+                ) : c.statusReason === 'blocked' ? (
+                  <span className="text-slate-400">Open store page</span>
                 ) : (
                   <span className="text-slate-400">Live search</span>
                 )}

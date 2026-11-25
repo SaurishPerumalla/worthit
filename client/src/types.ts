@@ -7,6 +7,7 @@ export interface RetailerPriceComparison {
   isLowestPrice: boolean;
   savingsVsAmazon?: number;
   label?: string;
+  statusReason?: 'not_found' | 'blocked';
 }
 
 export interface CandidateMatch {
