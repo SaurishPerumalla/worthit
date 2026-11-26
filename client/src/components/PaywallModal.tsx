@@ -126,7 +126,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                   <div className="flex items-center justify-between gap-1">
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">Pro Yearly</span>
                     <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold uppercase">
-                      Save 58%
+                      Save 44%
                     </span>
                   </div>
                   <div className="text-base font-black text-slate-900 dark:text-white">
@@ -134,7 +134,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                     <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">/yr</span>
                   </div>
                   <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-emerald-500" /> Best value (~$0.83/mo)
+                    <Sparkles className="h-3 w-3 text-emerald-500" /> Best value (~$1.67/mo)
                   </div>
                 </button>
               </div>

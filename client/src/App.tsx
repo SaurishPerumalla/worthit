@@ -45,8 +45,8 @@ export const App: React.FC = () => {
   const [paywallOpen, setPaywallOpen] = useState<boolean>(false);
   const [paywallStatus, setPaywallStatus] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<ProPlanInterval>('annual');
-  const [monthlyPrice, setMonthlyPrice] = useState<string>('$1.99');
-  const [annualPrice, setAnnualPrice] = useState<string>('$9.99');
+  const [monthlyPrice, setMonthlyPrice] = useState<string>('$2.99');
+  const [annualPrice, setAnnualPrice] = useState<string>('$19.99');
   const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
   const [annualPkg, setAnnualPkg] = useState<PurchasesPackage | null>(null);
   const [isPurchasing, setIsPurchasing] = useState<boolean>(false);

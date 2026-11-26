@@ -166,7 +166,7 @@ export async function checkAndConsumeQuota(
       limit: FREE_DAILY_LIMIT,
       trialExpired: true,
       trialDaysRemaining: 0,
-      error: 'Your 3-day free trial has ended. Upgrade to DealChaser Pro Monthly ($1.99/mo) or Pro Yearly ($9.99/yr) to continue.'
+      error: 'Your 3-day free trial has ended. Upgrade to DealChaser Pro Monthly ($2.99/mo) or Pro Yearly ($19.99/yr) to continue.'
     };
   }
 

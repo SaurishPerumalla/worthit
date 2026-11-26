@@ -68,8 +68,8 @@ export async function fetchProPackages(): Promise<{
     return {
       monthlyPkg: null,
       annualPkg: null,
-      monthlyPrice: '$1.99',
-      annualPrice: '$9.99'
+      monthlyPrice: '$2.99',
+      annualPrice: '$19.99'
     };
   }
 
@@ -91,15 +91,15 @@ export async function fetchProPackages(): Promise<{
     return {
       monthlyPkg,
       annualPkg,
-      monthlyPrice: monthlyPkg?.product?.priceString || '$1.99',
-      annualPrice: annualPkg?.product?.priceString || '$9.99'
+      monthlyPrice: monthlyPkg?.product?.priceString || '$2.99',
+      annualPrice: annualPkg?.product?.priceString || '$19.99'
     };
   } catch {
     return {
       monthlyPkg: null,
       annualPkg: null,
-      monthlyPrice: '$1.99',
-      annualPrice: '$9.99'
+      monthlyPrice: '$2.99',
+      annualPrice: '$19.99'
     };
   }
 }
