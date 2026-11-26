@@ -9,6 +9,7 @@ interface HeaderProps {
   activeItemCount: number;
   isPro: boolean;
   remaining: number;
+  trialExpired?: boolean;
   onOpenPaywall: () => void;
 }
 
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeItemCount,
   isPro,
   remaining,
+  trialExpired = false,
   onOpenPaywall
 }) => {
   return (
@@ -49,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
             title={isPro ? 'DealChaser Pro Active' : 'Upgrade to DealChaser Pro'}
           >
             <Crown className={`h-3.5 w-3.5 ${isPro ? 'text-emerald-500' : 'text-amber-500'}`} />
-            <span>{isPro ? 'PRO' : `Free: ${Math.max(0, remaining)}/${FREE_DAILY_LIMIT}`}</span>
+            <span>{isPro ? 'PRO' : trialExpired ? 'Trial Ended' : `Free: ${Math.max(0, remaining)}/${FREE_DAILY_LIMIT}`}</span>
           </button>
 
           {activeItemCount > 0 && (

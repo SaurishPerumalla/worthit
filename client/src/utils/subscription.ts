@@ -1,7 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { Purchases, LOG_LEVEL, PurchasesPackage } from '@revenuecat/purchases-capacitor';
 
-export const FREE_DAILY_LIMIT = 5;
+export const FREE_DAILY_LIMIT = 3;
+export const FREE_TRIAL_DAYS = 3;
 export const FREE_CORE_STORES = ['Target', 'Best Buy', 'Walmart'];
 const CORE_STORE_SET = new Set(FREE_CORE_STORES.map((s) => s.toLowerCase()));
 
@@ -9,6 +10,8 @@ const DEVICE_ID_STORAGE_KEY = 'dealchaser_device_id';
 const RC_IOS_API_KEY = (import.meta as any).env?.VITE_REVENUECAT_IOS_KEY?.trim() || '';
 
 let rcConfigured = false;
+
+export type ProPlanInterval = 'monthly' | 'annual';
 
 export function isCoreFreeStore(storeName: string): boolean {
   return CORE_STORE_SET.has(storeName.trim().toLowerCase());
@@ -55,24 +58,56 @@ export async function initRevenueCat(): Promise<boolean> {
   }
 }
 
-export async function fetchProMonthlyPackage(): Promise<{ pkg: PurchasesPackage | null; priceString: string }> {
+export async function fetchProPackages(): Promise<{
+  monthlyPkg: PurchasesPackage | null;
+  annualPkg: PurchasesPackage | null;
+  monthlyPrice: string;
+  annualPrice: string;
+}> {
   if (!isRevenueCatReady()) {
-    return { pkg: null, priceString: '$3.99' };
+    return {
+      monthlyPkg: null,
+      annualPkg: null,
+      monthlyPrice: '$1.99',
+      annualPrice: '$9.99'
+    };
   }
 
   try {
     await initRevenueCat();
     const offerings = await Purchases.getOfferings();
     const current = offerings?.current;
-    const pkg = current?.monthly || current?.availablePackages?.[0] || null;
-    const priceString = pkg?.product?.priceString || '$3.99';
-    return { pkg, priceString };
+    const available = current?.availablePackages || [];
+    const monthlyPkg =
+      current?.monthly ||
+      available.find((p) => p.packageType === 'MONTHLY' || /month/i.test(p.identifier)) ||
+      available[0] ||
+      null;
+    const annualPkg =
+      current?.annual ||
+      available.find((p) => p.packageType === 'ANNUAL' || /year|annual/i.test(p.identifier)) ||
+      null;
+
+    return {
+      monthlyPkg,
+      annualPkg,
+      monthlyPrice: monthlyPkg?.product?.priceString || '$1.99',
+      annualPrice: annualPkg?.product?.priceString || '$9.99'
+    };
   } catch {
-    return { pkg: null, priceString: '$3.99' };
+    return {
+      monthlyPkg: null,
+      annualPkg: null,
+      monthlyPrice: '$1.99',
+      annualPrice: '$9.99'
+    };
   }
 }
 
-export async function purchaseProMonthly(pkg?: PurchasesPackage | null): Promise<{ isPro: boolean; cancelled?: boolean; error?: string }> {
+export async function purchaseProPlan(
+  plan: ProPlanInterval,
+  pkg?: PurchasesPackage | null
+): Promise<{ isPro: boolean; cancelled?: boolean; error?: string }> {
   if (!Capacitor.isNativePlatform()) {
     return {
       isPro: false,
@@ -90,11 +125,14 @@ export async function purchaseProMonthly(pkg?: PurchasesPackage | null): Promise
     await initRevenueCat();
     let targetPkg = pkg;
     if (!targetPkg) {
-      const loaded = await fetchProMonthlyPackage();
-      targetPkg = loaded.pkg;
+      const loaded = await fetchProPackages();
+      targetPkg = plan === 'annual' ? loaded.annualPkg : loaded.monthlyPkg;
     }
     if (!targetPkg) {
-      return { isPro: false, error: 'Monthly subscription product is not configured in App Store Connect yet.' };
+      return {
+        isPro: false,
+        error: `Pro ${plan === 'annual' ? 'Yearly' : 'Monthly'} product is not configured in App Store Connect yet.`
+      };
     }
 
     const result = await Purchases.purchasePackage({ aPackage: targetPkg });

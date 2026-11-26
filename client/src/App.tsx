@@ -11,13 +11,15 @@ import { reEvaluateProducts } from './utils/evaluator.js';
 import { apiUrl } from './utils/api.js';
 import {
   FREE_DAILY_LIMIT,
+  FREE_TRIAL_DAYS,
   FREE_CORE_STORES,
   isCoreFreeStore,
   getDeviceId,
   initRevenueCat,
-  fetchProMonthlyPackage,
-  purchaseProMonthly,
-  restoreProPurchases
+  fetchProPackages,
+  purchaseProPlan,
+  restoreProPurchases,
+  ProPlanInterval
 } from './utils/subscription.js';
 import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 import { AlertCircle, ShoppingCart, RefreshCw } from 'lucide-react';
@@ -38,10 +40,15 @@ export const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPro, setIsPro] = useState<boolean>(false);
   const [remaining, setRemaining] = useState<number>(FREE_DAILY_LIMIT);
+  const [trialExpired, setTrialExpired] = useState<boolean>(false);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number>(FREE_TRIAL_DAYS);
   const [paywallOpen, setPaywallOpen] = useState<boolean>(false);
   const [paywallStatus, setPaywallStatus] = useState<string | null>(null);
-  const [priceString, setPriceString] = useState<string>('$3.99');
+  const [selectedPlan, setSelectedPlan] = useState<ProPlanInterval>('annual');
+  const [monthlyPrice, setMonthlyPrice] = useState<string>('$1.99');
+  const [annualPrice, setAnnualPrice] = useState<string>('$9.99');
   const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
+  const [annualPkg, setAnnualPkg] = useState<PurchasesPackage | null>(null);
   const [isPurchasing, setIsPurchasing] = useState<boolean>(false);
   const [selectedStores, setSelectedStores] = useState<string[]>(() => {
     try {
@@ -91,6 +98,8 @@ export const App: React.FC = () => {
         const data = await res.json();
         if (typeof data.isPro === 'boolean') setIsPro(prev => prev || data.isPro);
         if (typeof data.remaining === 'number') setRemaining(data.remaining);
+        if (typeof data.trialExpired === 'boolean') setTrialExpired(data.trialExpired);
+        if (typeof data.trialDaysRemaining === 'number') setTrialDaysRemaining(data.trialDaysRemaining);
       }
     } catch {
       // ignore startup network errors
@@ -103,9 +112,11 @@ export const App: React.FC = () => {
     initRevenueCat().then((active) => {
       if (active) setIsPro(true);
     });
-    fetchProMonthlyPackage().then(({ pkg, priceString: price }) => {
-      if (pkg) setMonthlyPkg(pkg);
-      if (price) setPriceString(price);
+    fetchProPackages().then(({ monthlyPkg: mPkg, annualPkg: aPkg, monthlyPrice: mPrice, annualPrice: aPrice }) => {
+      if (mPkg) setMonthlyPkg(mPkg);
+      if (aPkg) setAnnualPkg(aPkg);
+      if (mPrice) setMonthlyPrice(mPrice);
+      if (aPrice) setAnnualPrice(aPrice);
     });
   }, []);
 
@@ -167,8 +178,9 @@ export const App: React.FC = () => {
         body: JSON.stringify({ input: items[0], threshold: strictnessThreshold, stores: selectedStores })
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 402 || data.code === 'FREE_LIMIT_REACHED') {
+      if (res.status === 402 || data.code === 'FREE_LIMIT_REACHED' || data.code === 'TRIAL_EXPIRED') {
         setRemaining(0);
+        if (data.trialExpired || data.code === 'TRIAL_EXPIRED') setTrialExpired(true);
         setPaywallStatus(data.error || null);
         setPaywallOpen(true);
         return;
@@ -253,8 +265,9 @@ export const App: React.FC = () => {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
-        if (response.status === 402 || errBody.code === 'FREE_LIMIT_REACHED') {
+        if (response.status === 402 || errBody.code === 'FREE_LIMIT_REACHED' || errBody.code === 'TRIAL_EXPIRED') {
           setRemaining(0);
+          if (errBody.trialExpired || errBody.code === 'TRIAL_EXPIRED') setTrialExpired(true);
           setPaywallStatus(errBody.error || null);
           setPaywallOpen(true);
           setProgress(null);
@@ -426,10 +439,12 @@ export const App: React.FC = () => {
   const handleSubscribePro = async () => {
     setIsPurchasing(true);
     setPaywallStatus(null);
-    const result = await purchaseProMonthly(monthlyPkg);
+    const pkg = selectedPlan === 'annual' ? annualPkg : monthlyPkg;
+    const result = await purchaseProPlan(selectedPlan, pkg);
     setIsPurchasing(false);
     if (result.isPro) {
       setIsPro(true);
+      setTrialExpired(false);
       setRemaining(-1);
       setPaywallOpen(false);
       return;
@@ -468,6 +483,7 @@ export const App: React.FC = () => {
         activeItemCount={products.length}
         isPro={isPro}
         remaining={remaining}
+        trialExpired={trialExpired}
         onOpenPaywall={() => {
           setPaywallStatus(null);
           setPaywallOpen(true);
@@ -597,7 +613,12 @@ export const App: React.FC = () => {
         onClose={() => setPaywallOpen(false)}
         isPro={isPro}
         remaining={remaining}
-        priceString={priceString}
+        trialExpired={trialExpired}
+        trialDaysRemaining={trialDaysRemaining}
+        selectedPlan={selectedPlan}
+        onSelectPlan={setSelectedPlan}
+        monthlyPrice={monthlyPrice}
+        annualPrice={annualPrice}
         isProcessing={isPurchasing}
         statusMessage={paywallStatus}
         onSubscribe={handleSubscribePro}

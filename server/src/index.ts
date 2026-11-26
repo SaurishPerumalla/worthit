@@ -68,10 +68,12 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
     if (!quota.allowed) {
       res.status(402).json({
         success: false,
-        code: 'FREE_LIMIT_REACHED',
+        code: quota.trialExpired ? 'TRIAL_EXPIRED' : 'FREE_LIMIT_REACHED',
         error: quota.error,
         remaining: quota.remaining,
-        limit: quota.limit
+        limit: quota.limit,
+        trialExpired: quota.trialExpired,
+        trialDaysRemaining: quota.trialDaysRemaining
       });
       return;
     }
@@ -83,7 +85,9 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
       quota: {
         isPro: quota.isPro,
         remaining: quota.remaining,
-        limit: quota.limit
+        limit: quota.limit,
+        trialExpired: quota.trialExpired,
+        trialDaysRemaining: quota.trialDaysRemaining
       }
     });
   } catch (error: any) {
@@ -115,10 +119,12 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
     if (!quota.allowed) {
       res.status(402).json({
         success: false,
-        code: 'FREE_LIMIT_REACHED',
+        code: quota.trialExpired ? 'TRIAL_EXPIRED' : 'FREE_LIMIT_REACHED',
         error: quota.error,
         remaining: quota.remaining,
-        limit: quota.limit
+        limit: quota.limit,
+        trialExpired: quota.trialExpired,
+        trialDaysRemaining: quota.trialDaysRemaining
       });
       return;
     }
@@ -158,10 +164,12 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
   if (!quota.allowed) {
     res.status(402).json({
       success: false,
-      code: 'FREE_LIMIT_REACHED',
+      code: quota.trialExpired ? 'TRIAL_EXPIRED' : 'FREE_LIMIT_REACHED',
       error: quota.error,
       remaining: quota.remaining,
-      limit: quota.limit
+      limit: quota.limit,
+      trialExpired: quota.trialExpired,
+      trialDaysRemaining: quota.trialDaysRemaining
     });
     return;
   }
@@ -321,7 +329,7 @@ app.get('/privacy', (_req: Request, res: Response) => {
 
 app.get('/terms', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DealChaser Terms of Use</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#e2e8f0;background:#020617}h1,h2{color:#10b981}</style></head><body><h1>DealChaser Terms of Use</h1><p>Last updated: November 2026</p><h2>DealChaser Pro Subscription</h2><ul><li><strong>Subscription Title:</strong> DealChaser Pro Monthly</li><li><strong>Price:</strong> $3.99/month (or local App Store equivalent shown at purchase)</li><li><strong>Auto-Renewal:</strong> Payment is charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period.</li><li><strong>Managing &amp; Canceling:</strong> You can manage or cancel your subscription anytime in your Apple ID Account Settings after purchase.</li></ul><h2>Disclaimer</h2><p>Prices and availability are fetched from third-party retailers and may change at checkout. Always confirm the final price on the retailer's site before purchasing.</p></body></html>`);
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DealChaser Terms of Use</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#e2e8f0;background:#020617}h1,h2{color:#10b981}</style></head><body><h1>DealChaser Terms of Use</h1><p>Last updated: November 2026</p><h2>DealChaser Pro Subscriptions</h2><ul><li><strong>Free Trial:</strong> New users receive a 3-day free tier with up to 3 deal checks per day across Amazon, Target, Best Buy, and Walmart.</li><li><strong>Pro Monthly:</strong> $1.99/month (or local App Store equivalent shown at purchase) for unlimited deal checks and all custom stores.</li><li><strong>Pro Yearly:</strong> $9.99/year (or local App Store equivalent shown at purchase) for unlimited deal checks and all custom stores.</li><li><strong>Auto-Renewal:</strong> Payment is charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period.</li><li><strong>Managing &amp; Canceling:</strong> You can manage or cancel your subscription anytime in your Apple ID Account Settings after purchase.</li></ul><h2>Disclaimer</h2><p>Prices and availability are fetched from third-party retailers and may change at checkout. Always confirm the final price on the retailer's site before purchasing.</p></body></html>`);
 });
 
 // Serve frontend static build if present

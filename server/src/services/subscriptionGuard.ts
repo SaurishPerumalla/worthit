@@ -1,13 +1,16 @@
 import { Request } from 'express';
 
-export const FREE_DAILY_LIMIT = 5;
+export const FREE_DAILY_LIMIT = 3;
+export const FREE_TRIAL_DAYS = 3;
 export const FREE_CORE_STORES = ['Target', 'Best Buy', 'Walmart'];
 
 const CORE_STORE_SET = new Set(FREE_CORE_STORES.map((s) => s.toLowerCase()));
 const PRO_CACHE_TTL_MS = 5 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const proEntitlementCache = new Map<string, { isPro: boolean; expiresAt: number }>();
 const dailyUsageMap = new Map<string, { date: string; count: number }>();
+const firstSeenMap = new Map<string, number>();
 
 function getTodayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -20,6 +23,25 @@ function getClientKey(req: Request): string {
   }
   const forwarded = String(req.header('x-forwarded-for') || '').split(',')[0].trim();
   return `ip:${forwarded || req.ip || 'unknown'}`;
+}
+
+function getTrialState(clientKey: string): { trialExpired: boolean; trialDaysRemaining: number } {
+  const now = Date.now();
+  let firstSeen = firstSeenMap.get(clientKey);
+  if (firstSeen === undefined) {
+    firstSeen = now;
+    firstSeenMap.set(clientKey, firstSeen);
+    if (firstSeenMap.size > 5000) {
+      const oldestKey = firstSeenMap.keys().next().value;
+      if (oldestKey) firstSeenMap.delete(oldestKey);
+    }
+  }
+  const elapsedDays = Math.floor((now - firstSeen) / DAY_MS);
+  const trialDaysRemaining = Math.max(0, FREE_TRIAL_DAYS - elapsedDays);
+  return {
+    trialExpired: elapsedDays >= FREE_TRIAL_DAYS,
+    trialDaysRemaining
+  };
 }
 
 /**
@@ -71,24 +93,37 @@ export async function getSubscriptionQuotaStatus(req: Request): Promise<{
   used: number;
   remaining: number;
   limit: number;
+  trialExpired: boolean;
+  trialDaysRemaining: number;
   freeStores: string[];
 }> {
   const clientKey = getClientKey(req);
   const isPro = await verifyProEntitlement(clientKey);
   if (isPro) {
-    return { isPro: true, used: 0, remaining: -1, limit: -1, freeStores: FREE_CORE_STORES };
+    return {
+      isPro: true,
+      used: 0,
+      remaining: -1,
+      limit: -1,
+      trialExpired: false,
+      trialDaysRemaining: FREE_TRIAL_DAYS,
+      freeStores: FREE_CORE_STORES
+    };
   }
 
+  const { trialExpired, trialDaysRemaining } = getTrialState(clientKey);
   const today = getTodayKey();
   const entry = dailyUsageMap.get(clientKey);
   const used = entry && entry.date === today ? entry.count : 0;
-  const remaining = Math.max(0, FREE_DAILY_LIMIT - used);
+  const remaining = trialExpired ? 0 : Math.max(0, FREE_DAILY_LIMIT - used);
 
   return {
     isPro: false,
     used,
     remaining,
     limit: FREE_DAILY_LIMIT,
+    trialExpired,
+    trialDaysRemaining,
     freeStores: FREE_CORE_STORES
   };
 }
@@ -102,6 +137,8 @@ export async function checkAndConsumeQuota(
   effectiveStores: string[] | undefined;
   remaining: number;
   limit: number;
+  trialExpired: boolean;
+  trialDaysRemaining: number;
   error?: string;
 }> {
   const clientKey = getClientKey(req);
@@ -113,7 +150,23 @@ export async function checkAndConsumeQuota(
       isPro: true,
       effectiveStores: requestedStores,
       remaining: -1,
-      limit: -1
+      limit: -1,
+      trialExpired: false,
+      trialDaysRemaining: FREE_TRIAL_DAYS
+    };
+  }
+
+  const { trialExpired, trialDaysRemaining } = getTrialState(clientKey);
+  if (trialExpired) {
+    return {
+      allowed: false,
+      isPro: false,
+      effectiveStores: FREE_CORE_STORES,
+      remaining: 0,
+      limit: FREE_DAILY_LIMIT,
+      trialExpired: true,
+      trialDaysRemaining: 0,
+      error: 'Your 3-day free trial has ended. Upgrade to DealChaser Pro Monthly ($1.99/mo) or Pro Yearly ($9.99/yr) to continue.'
     };
   }
 
@@ -128,6 +181,8 @@ export async function checkAndConsumeQuota(
       effectiveStores: FREE_CORE_STORES,
       remaining: 0,
       limit: FREE_DAILY_LIMIT,
+      trialExpired: false,
+      trialDaysRemaining,
       error: `Daily free limit reached (${FREE_DAILY_LIMIT}/${FREE_DAILY_LIMIT} checks). Upgrade to DealChaser Pro for unlimited searches and custom stores.`
     };
   }
@@ -151,6 +206,8 @@ export async function checkAndConsumeQuota(
     isPro: false,
     effectiveStores,
     remaining: Math.max(0, FREE_DAILY_LIMIT - (used + 1)),
-    limit: FREE_DAILY_LIMIT
+    limit: FREE_DAILY_LIMIT,
+    trialExpired: false,
+    trialDaysRemaining
   };
 }
