@@ -379,8 +379,9 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Input Hub */}
+        {/* Input Hub (Single Item + Store Selector) */}
         <InputHub
+          section="top"
           onScanSingle={handleScanSingle}
           onScanWishlist={handleScanWishlist}
           onImportWishlistUrl={handleImportWishlistUrl}
@@ -455,6 +456,17 @@ export const App: React.FC = () => {
           /* Empty / Welcome Info Tile */
           <InfoTile onQuickSearch={handleScanSingle} />
         ) : null}
+
+        {/* Bottom Input Hub (Wishlist Builder + Amazon Wishlist URL) */}
+        <InputHub
+          section="bottom"
+          onScanSingle={handleScanSingle}
+          onScanWishlist={handleScanWishlist}
+          onImportWishlistUrl={handleImportWishlistUrl}
+          isLoading={isLoading}
+          selectedStores={selectedStores}
+          onChangeStores={setSelectedStores}
+        />
       </main>
 
       {/* Footer */}
