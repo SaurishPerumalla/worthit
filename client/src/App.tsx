@@ -5,9 +5,21 @@ import { ProgressBar } from './components/ProgressBar.js';
 import { SummaryDashboard } from './components/SummaryDashboard.js';
 import { ProductCard } from './components/ProductCard.js';
 import { InfoTile } from './components/InfoTile.js';
+import { PaywallModal } from './components/PaywallModal.js';
 import { VettedProduct, ScrapeProgressEvent } from './types.js';
 import { reEvaluateProducts } from './utils/evaluator.js';
 import { apiUrl } from './utils/api.js';
+import {
+  FREE_DAILY_LIMIT,
+  FREE_CORE_STORES,
+  isCoreFreeStore,
+  getDeviceId,
+  initRevenueCat,
+  fetchProMonthlyPackage,
+  purchaseProMonthly,
+  restoreProPurchases
+} from './utils/subscription.js';
+import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 import { AlertCircle, ShoppingCart, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -24,6 +36,13 @@ export const App: React.FC = () => {
   const [strictnessThreshold, setStrictnessThreshold] = useState<number>(12);
   const [showApprovedOnly, setShowApprovedOnly] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPro, setIsPro] = useState<boolean>(false);
+  const [remaining, setRemaining] = useState<number>(FREE_DAILY_LIMIT);
+  const [paywallOpen, setPaywallOpen] = useState<boolean>(false);
+  const [paywallStatus, setPaywallStatus] = useState<string | null>(null);
+  const [priceString, setPriceString] = useState<string>('$3.99');
+  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState<boolean>(false);
   const [selectedStores, setSelectedStores] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('dealchaser_stores');
@@ -62,10 +81,43 @@ export const App: React.FC = () => {
     }
   }, [strictnessThreshold]);
 
-  // Pre-warm backend on mount so free-tier cloud servers wake up before the user submits
+  // Pre-warm backend, initialize RevenueCat, and sync daily quota on mount
+  const refreshQuotaStatus = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/subscription-status'), {
+        headers: { 'x-device-id': getDeviceId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.isPro === 'boolean') setIsPro(prev => prev || data.isPro);
+        if (typeof data.remaining === 'number') setRemaining(data.remaining);
+      }
+    } catch {
+      // ignore startup network errors
+    }
+  };
+
   useEffect(() => {
     fetch(apiUrl('/api/health')).catch(() => {});
+    refreshQuotaStatus();
+    initRevenueCat().then((active) => {
+      if (active) setIsPro(true);
+    });
+    fetchProMonthlyPackage().then(({ pkg, priceString: price }) => {
+      if (pkg) setMonthlyPkg(pkg);
+      if (price) setPriceString(price);
+    });
   }, []);
+
+  // Keep Free-tier users scoped to the 3 core stores
+  useEffect(() => {
+    if (!isPro) {
+      const filtered = selectedStores.filter(isCoreFreeStore);
+      if (filtered.length !== selectedStores.length) {
+        setSelectedStores(filtered.length > 0 ? filtered : FREE_CORE_STORES);
+      }
+    }
+  }, [isPro]);
 
   /**
    * Validates a single product query / Amazon URL / ASIN before sending to the backend.
@@ -111,12 +163,23 @@ export const App: React.FC = () => {
     if (items.length === 1) {
       const res = await fetch(apiUrl('/api/vet-single'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-device-id': getDeviceId() },
         body: JSON.stringify({ input: items[0], threshold: strictnessThreshold, stores: selectedStores })
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 402 || data.code === 'FREE_LIMIT_REACHED') {
+        setRemaining(0);
+        setPaywallStatus(data.error || null);
+        setPaywallOpen(true);
+        return;
+      }
       if (!res.ok || !data.success || !data.product) {
         throw new Error(data.error || `Request failed (HTTP ${res.status})`);
+      }
+      if (typeof data.quota?.remaining === 'number') {
+        setRemaining(data.quota.remaining);
+      } else if (!isPro) {
+        setRemaining(r => Math.max(0, r - 1));
       }
       const prod: VettedProduct = data.product;
       setProgress({
@@ -184,12 +247,20 @@ export const App: React.FC = () => {
     try {
       const response = await fetch(apiUrl('/api/vet-stream'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-device-id': getDeviceId() },
         body: JSON.stringify({ items: validItems, threshold: strictnessThreshold, stores: selectedStores })
       });
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
+        if (response.status === 402 || errBody.code === 'FREE_LIMIT_REACHED') {
+          setRemaining(0);
+          setPaywallStatus(errBody.error || null);
+          setPaywallOpen(true);
+          setProgress(null);
+          setIsLoading(false);
+          return;
+        }
         throw new Error(errBody.error || `Failed to initiate stream: HTTP ${response.status}`);
       }
 
@@ -239,6 +310,10 @@ export const App: React.FC = () => {
         if (streamError && receivedProductCount === 0) {
           throw new Error(streamError);
         }
+      }
+
+      if (receivedProductCount > 0 && !isPro) {
+        refreshQuotaStatus();
       }
 
       setTimeout(() => {
@@ -348,6 +423,38 @@ export const App: React.FC = () => {
     ? products.filter(p => p.verdict.tier === 'APPROVED_ALL_TIME_LOW' || p.verdict.tier === 'APPROVED_STRONG_DEAL')
     : products;
 
+  const handleSubscribePro = async () => {
+    setIsPurchasing(true);
+    setPaywallStatus(null);
+    const result = await purchaseProMonthly(monthlyPkg);
+    setIsPurchasing(false);
+    if (result.isPro) {
+      setIsPro(true);
+      setRemaining(-1);
+      setPaywallOpen(false);
+      return;
+    }
+    if (!result.cancelled && result.error) {
+      setPaywallStatus(result.error);
+    }
+  };
+
+  const handleRestorePro = async () => {
+    setIsPurchasing(true);
+    setPaywallStatus(null);
+    const result = await restoreProPurchases();
+    setIsPurchasing(false);
+    if (result.isPro) {
+      setIsPro(true);
+      setRemaining(-1);
+      setPaywallOpen(false);
+      return;
+    }
+    if (result.error) {
+      setPaywallStatus(result.error);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200 overflow-x-hidden">
       {/* Subtle Ambient Aurora Glow */}
@@ -359,6 +466,12 @@ export const App: React.FC = () => {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         activeItemCount={products.length}
+        isPro={isPro}
+        remaining={remaining}
+        onOpenPaywall={() => {
+          setPaywallStatus(null);
+          setPaywallOpen(true);
+        }}
       />
 
       <main className="relative flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
@@ -379,7 +492,7 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Input Hub (Single Item + Store Selector) */}
+        {/* Input Hub (Single Item) */}
         <InputHub
           section="top"
           onScanSingle={handleScanSingle}
@@ -388,6 +501,11 @@ export const App: React.FC = () => {
           isLoading={isLoading}
           selectedStores={selectedStores}
           onChangeStores={setSelectedStores}
+          isPro={isPro}
+          onOpenPaywall={() => {
+            setPaywallStatus(null);
+            setPaywallOpen(true);
+          }}
         />
 
         {/* Real-time Progress Bar */}
@@ -457,7 +575,7 @@ export const App: React.FC = () => {
           <InfoTile onQuickSearch={handleScanSingle} />
         ) : null}
 
-        {/* Bottom Input Hub (Wishlist Builder + Amazon Wishlist URL) */}
+        {/* Bottom Input Hub (Store Comparison Bar) */}
         <InputHub
           section="bottom"
           onScanSingle={handleScanSingle}
@@ -466,8 +584,25 @@ export const App: React.FC = () => {
           isLoading={isLoading}
           selectedStores={selectedStores}
           onChangeStores={setSelectedStores}
+          isPro={isPro}
+          onOpenPaywall={() => {
+            setPaywallStatus(null);
+            setPaywallOpen(true);
+          }}
         />
       </main>
+
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        isPro={isPro}
+        remaining={remaining}
+        priceString={priceString}
+        isProcessing={isPurchasing}
+        statusMessage={paywallStatus}
+        onSubscribe={handleSubscribePro}
+        onRestore={handleRestorePro}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-white dark:bg-transparent mt-auto transition-colors">

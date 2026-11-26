@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Search, Plus, ArrowRight, Store, ChevronDown, Check, X } from 'lucide-react';
+import { Search, Plus, ArrowRight, Store, ChevronDown, Check, X, Lock } from 'lucide-react';
+import { isCoreFreeStore } from '../utils/subscription.js';
 
 const SHOULD_AUTO_FOCUS = typeof window !== 'undefined' && !Capacitor.isNativePlatform() && window.innerWidth >= 640;
 
@@ -27,6 +28,8 @@ interface InputHubProps {
   selectedStores: string[];
   onChangeStores: (stores: string[]) => void;
   section?: 'all' | 'top' | 'bottom';
+  isPro?: boolean;
+  onOpenPaywall?: () => void;
 }
 
 export const InputHub: React.FC<InputHubProps> = ({
@@ -34,7 +37,9 @@ export const InputHub: React.FC<InputHubProps> = ({
   isLoading,
   selectedStores,
   onChangeStores,
-  section = 'all'
+  section = 'all',
+  isPro = true,
+  onOpenPaywall
 }) => {
   const [activeTab, setActiveTab] = useState<InputMode>('single');
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
@@ -57,6 +62,10 @@ export const InputHub: React.FC<InputHubProps> = ({
       if (selectedStores.length <= 1) return; // keep at least 1 store
       onChangeStores(selectedStores.filter(s => s.toLowerCase() !== storeName.toLowerCase()));
     } else {
+      if (!isPro && !isCoreFreeStore(storeName)) {
+        onOpenPaywall?.();
+        return;
+      }
       onChangeStores([...selectedStores, storeName]);
     }
   };
@@ -68,6 +77,10 @@ export const InputHub: React.FC<InputHubProps> = ({
       .replace(/^www\./i, '')
       .replace(/\/.*$/, '');
     if (!cleaned || cleaned.toLowerCase() === 'amazon') return;
+    if (!isPro && !isCoreFreeStore(cleaned)) {
+      onOpenPaywall?.();
+      return;
+    }
     if (!selectedStores.some(s => s.toLowerCase() === cleaned.toLowerCase())) {
       onChangeStores([...selectedStores, cleaned]);
     }
@@ -261,6 +274,7 @@ export const InputHub: React.FC<InputHubProps> = ({
                 !customStoreInput.trim() || s.name.toLowerCase().includes(customStoreInput.trim().toLowerCase())
               ).map((store) => {
                 const isSelected = selectedStores.some(s => s.toLowerCase() === store.name.toLowerCase());
+                const isLocked = !isPro && !isCoreFreeStore(store.name);
                 return (
                   <button
                     key={store.name}
@@ -276,7 +290,11 @@ export const InputHub: React.FC<InputHubProps> = ({
                       <span className={`h-2 w-2 rounded-full flex-shrink-0 ${store.dot}`} />
                       <span className="truncate">{store.name}</span>
                     </span>
-                    {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />}
+                    {isLocked ? (
+                      <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                    ) : isSelected ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    ) : null}
                   </button>
                 );
               })}

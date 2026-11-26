@@ -8,6 +8,7 @@ import { vetSingleProduct, processQueueWithConcurrency } from './services/scrape
 import { importAmazonWishlist } from './services/wishlistImporter.js';
 import { evaluateDeal } from './services/vettingEngine.js';
 import { warmUpCccWorker } from './services/cccScraper.js';
+import { checkAndConsumeQuota, getSubscriptionQuotaStatus } from './services/subscriptionGuard.js';
 import { VettedProduct, ScrapeProgressEvent } from './types.js';
 
 dotenv.config();
@@ -44,6 +45,12 @@ function clampThreshold(raw: unknown): number {
   return Math.min(90, Math.max(1, n));
 }
 
+// Subscription & Daily Quota Status
+app.get('/api/subscription-status', async (req: Request, res: Response) => {
+  const status = await getSubscriptionQuotaStatus(req);
+  res.json({ success: true, ...status });
+});
+
 // Single Product Vetting
 app.post('/api/vet-single', async (req: Request, res: Response) => {
   try {
@@ -56,11 +63,28 @@ app.post('/api/vet-single', async (req: Request, res: Response) => {
       return;
     }
 
-    const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
-    const product = await vetSingleProduct(input.trim(), clampThreshold(threshold), undefined, 0, 1, selectedStores);
+    const requestedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+    const quota = await checkAndConsumeQuota(req, requestedStores);
+    if (!quota.allowed) {
+      res.status(402).json({
+        success: false,
+        code: 'FREE_LIMIT_REACHED',
+        error: quota.error,
+        remaining: quota.remaining,
+        limit: quota.limit
+      });
+      return;
+    }
+
+    const product = await vetSingleProduct(input.trim(), clampThreshold(threshold), undefined, 0, 1, quota.effectiveStores);
     res.json({
       success: true,
-      product
+      product,
+      quota: {
+        isPro: quota.isPro,
+        remaining: quota.remaining,
+        limit: quota.limit
+      }
     });
   } catch (error: any) {
     console.error('Error in /api/vet-single:', error);
@@ -86,8 +110,20 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
       return;
     }
 
-    const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
-    const products = await processQueueWithConcurrency(cleanItems, clampThreshold(threshold), undefined, 2, selectedStores);
+    const requestedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+    const quota = await checkAndConsumeQuota(req, requestedStores);
+    if (!quota.allowed) {
+      res.status(402).json({
+        success: false,
+        code: 'FREE_LIMIT_REACHED',
+        error: quota.error,
+        remaining: quota.remaining,
+        limit: quota.limit
+      });
+      return;
+    }
+
+    const products = await processQueueWithConcurrency(cleanItems, clampThreshold(threshold), undefined, 2, quota.effectiveStores);
     res.json({
       success: true,
       count: products.length,
@@ -105,7 +141,7 @@ app.post('/api/vet-wishlist', async (req: Request, res: Response) => {
 // Real-Time SSE Stream for Wishlist / Bulk Vetting
 app.post('/api/vet-stream', async (req: Request, res: Response) => {
   const { items, threshold = 12, stores } = req.body || {};
-  const selectedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+  const requestedStores = Array.isArray(stores) ? stores.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
 
   if (!Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: 'Please provide at least one product to check.' });
@@ -117,6 +153,19 @@ app.post('/api/vet-stream', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'Please enter a valid product name (at least 2 characters), Amazon link, or ASIN.' });
     return;
   }
+
+  const quota = await checkAndConsumeQuota(req, requestedStores);
+  if (!quota.allowed) {
+    res.status(402).json({
+      success: false,
+      code: 'FREE_LIMIT_REACHED',
+      error: quota.error,
+      remaining: quota.remaining,
+      limit: quota.limit
+    });
+    return;
+  }
+  const selectedStores = quota.effectiveStores;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -262,6 +311,17 @@ app.get('/api/chart-proxy', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).send(err.message || 'Error proxying chart');
   }
+});
+
+// App Store Legal Pages (Privacy Policy & Terms of Use / EULA)
+app.get('/privacy', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DealChaser Privacy Policy</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#e2e8f0;background:#020617}h1,h2{color:#10b981}</style></head><body><h1>DealChaser Privacy Policy</h1><p>Last updated: November 2026</p><p>DealChaser respects your privacy. We do not require account registration, and we do not sell your personal information.</p><h2>Data We Process</h2><ul><li><strong>Product Queries:</strong> Search terms and URLs you enter are sent to our server solely to look up live prices and historical price charts.</li><li><strong>Anonymous Device Identifier:</strong> A random anonymous device ID is stored locally on your device to enforce daily Free tier limits and verify your DealChaser Pro subscription status via RevenueCat and Apple StoreKit.</li></ul><h2>Subscriptions</h2><p>Subscriptions are processed securely by Apple via the App Store. Payment and billing details are never accessible to DealChaser.</p><h2>Contact</h2><p>For support or privacy questions, contact the developer through the DealChaser App Store support link.</p></body></html>`);
+});
+
+app.get('/terms', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DealChaser Terms of Use</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#e2e8f0;background:#020617}h1,h2{color:#10b981}</style></head><body><h1>DealChaser Terms of Use</h1><p>Last updated: November 2026</p><h2>DealChaser Pro Subscription</h2><ul><li><strong>Subscription Title:</strong> DealChaser Pro Monthly</li><li><strong>Price:</strong> $3.99/month (or local App Store equivalent shown at purchase)</li><li><strong>Auto-Renewal:</strong> Payment is charged to your Apple ID account at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period.</li><li><strong>Managing &amp; Canceling:</strong> You can manage or cancel your subscription anytime in your Apple ID Account Settings after purchase.</li></ul><h2>Disclaimer</h2><p>Prices and availability are fetched from third-party retailers and may change at checkout. Always confirm the final price on the retailer's site before purchasing.</p></body></html>`);
 });
 
 // Serve frontend static build if present
