@@ -176,7 +176,7 @@ export function scoreProductRelevance(title: string, query: string): number {
       !/\b(?:aluminum|titanium|stainless\s*steel|ceramic|watch)\s+case\b/i.test(t) &&
       !/\b(?:charging|magsafe(?:\s+charging)?)\s+case\b/i.test(t);
 
-    const hasOtherAccessoryToken = /\b(covers?|earpads?|ear\s*pads?|cushions?|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner)\b/i.test(t);
+    const hasOtherAccessoryToken = /\b(covers?|earpads?|ear\s*pads?|cushions?|protector|strap|cable|charger|adapter|holder|wallet|skin|stand|mount|film|bumper|keychain|carabiner|uag|urban\s*armor\s*gear|spigen|otterbox|esr|elago|casetify|speck|supcase|dbrand|pitaka|mous|catalyst|lifeproof|ringke|torras)\b/i.test(t);
     const hasStandaloneBand = /\bband\b/i.test(t) && !/\b(?:apple\s*watch|galaxy\s*watch|pixel\s*watch|watch\s*se|smartwatch)\b/i.test(t);
 
     if (isAccessoryPhrase || hasProtectiveCaseToken || hasOtherAccessoryToken || hasStandaloneBand) {

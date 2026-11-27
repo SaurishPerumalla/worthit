@@ -1235,8 +1235,11 @@ export async function resolveAppleLiveProduct(
           }, 3000);
           if (mktRes.ok) {
             const mHtml = await mktRes.text();
-            const buyMatch = mHtml.match(/href="([^"]*\/shop\/(?:buy-[a-z0-9-]+|goto\/buy_[a-z0-9_]+)[^"]*)"/i);
-            targetUrl = buyMatch ? toAbsoluteUrl(buyMatch[1], 'https://www.apple.com') : mktCandidates[0].url;
+            const buyMatches = [...mHtml.matchAll(/href="([^"]*\/shop\/(?:buy-[a-z0-9-]+|goto\/buy_[a-z0-9_]+)[^"]*)"/gi)]
+              .map(m => m[1])
+              .filter(u => !/accessories|refurbished|carrier-offers/i.test(u));
+            const preferredBuy = buyMatches.find(u => /\/shop\/buy-/i.test(u)) || buyMatches[0];
+            targetUrl = preferredBuy ? toAbsoluteUrl(preferredBuy, 'https://www.apple.com') : mktCandidates[0].url;
           }
         } catch {
           // ignore
@@ -1409,6 +1412,7 @@ function extractBestProductFromMarkdown(
 
       if (!hostnameMatchesDomain(rawUrl, domain)) continue;
       if (/\/(?:reviews|cart|add-to-cart|login|account|help|giftcards|explora)\b/i.test(rawUrl)) continue;
+      if (!/\b(case|cover|protector|leather|silicone)\b/i.test(targetQuery) && /(?:uag|spigen|otterbox|esr|elago|casetify|speck|dbrand|pitaka|nomad|supcase|leather|silicone)-/i.test(rawUrl)) continue;
       if (/^Image\s*\d+/i.test(lm[1]) || /^Add to Cart$/i.test(rawTitle)) continue;
 
       const score = scoreStrictMatch(rawTitle, targetQuery);
@@ -1708,6 +1712,7 @@ function extractBestProductFromHtml(
       const t = $(a).text().replace(/\s+/g, ' ').trim();
       const h = $(a).attr('href') || '';
       if (t.length > bestTitle.length && !t.includes('$') && !/review|compare|cart|login/i.test(h)) {
+        if (!/\b(case|cover|protector|leather|silicone)\b/i.test(targetQuery) && /(?:uag|spigen|otterbox|esr|elago|casetify|speck|dbrand|pitaka|nomad|supcase|leather|silicone)-/i.test(h)) return;
         bestTitle = t;
         bestHref = h;
       }
