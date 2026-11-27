@@ -44,7 +44,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
         {/* Top Accent */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500" />
+        <div className="h-1.5 w-full bg-gradient-to-r from-violet-600 via-indigo-500 to-emerald-400" />
 
         <button
           type="button"
@@ -163,7 +163,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
                 type="button"
                 onClick={onSubscribe}
                 disabled={isProcessing}
-                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm shadow-lg shadow-emerald-700/25 transition-all"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-emerald-500 hover:from-violet-500 hover:via-indigo-500 hover:to-emerald-400 disabled:opacity-50 text-white font-bold text-sm shadow-lg shadow-violet-700/30 transition-all"
               >
                 {isProcessing ? 'Processing...' : `Continue with Pro — ${selectedPrice}/${selectedPeriod}`}
               </button>

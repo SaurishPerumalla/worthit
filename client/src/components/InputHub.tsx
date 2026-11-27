@@ -103,7 +103,7 @@ export const InputHub: React.FC<InputHubProps> = ({
       <div
         className={`animate-fade-up rounded-2xl border transition-all duration-200 overflow-hidden ${
           activeTab === 'single'
-            ? 'bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
+            ? 'bg-white dark:bg-[#130d2a]/90 border-violet-500/70 shadow-md ring-1 ring-violet-500/30'
             : 'bg-white/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
         }`}
       >
@@ -116,7 +116,7 @@ export const InputHub: React.FC<InputHubProps> = ({
             <div
               className={`p-2 rounded-xl flex-shrink-0 transition-colors ${
                 activeTab === 'single'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  ? 'bg-gradient-to-br from-violet-600 to-emerald-400 text-white shadow-sm'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -164,7 +164,7 @@ export const InputHub: React.FC<InputHubProps> = ({
                 <button
                   type="submit"
                   disabled={!singleInput.trim() || isLoading}
-                  className="relative overflow-hidden group press-scale py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-emerald-700/20 whitespace-nowrap flex-shrink-0"
+                  className="relative overflow-hidden group press-scale py-3 px-5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-emerald-500 hover:from-violet-500 hover:via-indigo-500 hover:to-emerald-400 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-1.5 transition-all shadow-lg shadow-violet-700/30 whitespace-nowrap flex-shrink-0"
                 >
                   {singleInput.trim() && !isLoading && (
                     <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-shimmer-sweep" />
@@ -235,7 +235,7 @@ export const InputHub: React.FC<InputHubProps> = ({
                 type="button"
                 onClick={handleAddCustomStore}
                 disabled={!customStoreInput.trim() || isLoading}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-colors flex-shrink-0"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-sm shadow-violet-700/25 flex-shrink-0"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add</span>
