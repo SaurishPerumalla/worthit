@@ -471,11 +471,11 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200 overflow-x-hidden">
-      {/* Subtle Ambient Aurora Glow */}
+    <div className="relative min-h-screen bg-slate-50 dark:bg-[#0b071a] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200 overflow-x-hidden">
+      {/* Subtle Ambient Indigo & Emerald Aurora Glow */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-emerald-500/10 via-teal-500/5 to-transparent dark:from-emerald-500/15 dark:via-cyan-500/5 blur-2xl animate-aurora-breathe"
+        className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-violet-600/15 via-emerald-500/10 to-transparent dark:from-violet-600/25 dark:via-emerald-500/10 blur-2xl animate-aurora-breathe"
       />
       <Header
         darkMode={darkMode}
