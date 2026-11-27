@@ -1081,15 +1081,35 @@ export async function compareRetailers(
       if (hit) customResults[idx] = { ...hit, retailer: id.displayName };
     }
 
-    // Targeted Google Shopping / `site:<domain>` query ONLY for custom stores not found in initial broad Shopping call
-    if (options?.allowSerperSite !== false && stillMissing.length > 0) {
+    // Targeted Google Shopping / `site:<domain>` query for any core or custom stores still missing
+    if (options?.allowSerperSite !== false) {
       const cleanQ = simplifyProductQueryForStore(productTitle);
-      await Promise.all(
-        stillMissing.map(async ({ idx, id }) => {
+      const coreMissingTasks: Promise<void>[] = [];
+      if (wantsTarget && !finalTargetMatch) {
+        coreMissingTasks.push(
+          fetchSerperSiteSearch(normalizeStoreIdentity('Target'), cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch)
+            .then(hit => { if (hit) finalTargetMatch = hit; })
+        );
+      }
+      if (wantsBestBuy && !finalBestBuyMatch) {
+        coreMissingTasks.push(
+          fetchSerperSiteSearch(normalizeStoreIdentity('Best Buy'), cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch)
+            .then(hit => { if (hit) finalBestBuyMatch = hit; })
+        );
+      }
+      if (wantsWalmart && !walmartMatch) {
+        coreMissingTasks.push(
+          fetchSerperSiteSearch(normalizeStoreIdentity('Walmart'), cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch)
+            .then(hit => { if (hit) walmartMatch = hit; })
+        );
+      }
+      await Promise.all([
+        ...coreMissingTasks,
+        ...stillMissing.map(async ({ idx, id }) => {
           const siteHit = await fetchSerperSiteSearch(id, cleanQ, productTitle, amazonPrice, scoreStrictRetailerMatch);
           if (siteHit) customResults[idx] = { ...siteHit, retailer: id.displayName };
         })
-      );
+      ]);
     }
   }
 
