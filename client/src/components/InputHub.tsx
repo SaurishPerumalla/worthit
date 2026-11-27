@@ -211,36 +211,52 @@ export const InputHub: React.FC<InputHubProps> = ({
             </div>
           </div>
 
-          {/* Search/Add Store Bar FIRST, then Quick-Add Stores Dropdown Button */}
+          {/* Search/Add Store Bar FIRST (Pro only), then Quick-Add Stores Dropdown Button */}
           <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex flex-1 gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                <input
-                  type="text"
-                  value={customStoreInput}
-                  onChange={(e) => setCustomStoreInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddCustomStore();
-                    }
-                  }}
-                  disabled={isLoading}
-                  placeholder="Add store or website (e.g. Costco, adorama.com)..."
-                  className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                />
+            {isPro ? (
+              <div className="flex flex-1 gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    value={customStoreInput}
+                    onChange={(e) => setCustomStoreInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomStore();
+                      }
+                    }}
+                    disabled={isLoading}
+                    placeholder="Add store or website (e.g. Costco, adorama.com)..."
+                    className="w-full bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-base sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCustomStore}
+                  disabled={!customStoreInput.trim() || isLoading}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-sm shadow-violet-700/25 flex-shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add</span>
+                </button>
               </div>
+            ) : (
               <button
                 type="button"
-                onClick={handleAddCustomStore}
-                disabled={!customStoreInput.trim() || isLoading}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-sm shadow-violet-700/25 flex-shrink-0"
+                onClick={() => onOpenPaywall?.()}
+                className="flex-1 flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-950/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 transition-colors"
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add</span>
+                <span className="flex items-center gap-2 truncate">
+                  <Lock className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                  <span className="truncate">Add custom stores &amp; websites</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-400 text-[10px] font-bold uppercase flex-shrink-0">
+                  Pro
+                </span>
               </button>
-            </div>
+            )}
 
             <button
               type="button"

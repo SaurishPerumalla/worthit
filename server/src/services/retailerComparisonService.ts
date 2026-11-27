@@ -839,8 +839,8 @@ export async function resolveBestBuyLiveProduct(
     }
   }
 
-  // 3. Cloud fallback when Best Buy blocks datacenter IPs
-  return getBestBuyCloudFallback(targetQuery);
+  // 3. Cloud fallback only when Serper is not configured; otherwise let Serper fetch live Best Buy pricing
+  return process.env.SERPER_API_KEY?.trim() ? null : getBestBuyCloudFallback(targetQuery);
 }
 
 /**
